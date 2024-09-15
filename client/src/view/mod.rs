@@ -9,10 +9,16 @@ use common::message::DndMessage;
 use egui_dock::{NodeIndex, SurfaceIndex};
 use message_io::events::EventSender;
 
-use crate::listener::Signal;
+use crate::{listener::Signal, state::DndState};
 
 pub trait DndTabImpl {
-    fn ui(&mut self, ui: &mut egui::Ui, tx: &EventSender<Signal>, rx: &Receiver<DndMessage>);
+    fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        state: &DndState,
+        tx: &EventSender<Signal>,
+        rx: &Receiver<DndMessage>,
+    );
     fn title(&self) -> String;
 }
 
@@ -42,6 +48,7 @@ impl DndTab {
 
 pub struct TabViewer<'a> {
     pub added_nodes: &'a mut Vec<DndTab>,
+    pub state: &'a DndState,
     pub tx: &'a EventSender<Signal>,
     pub rx: &'a Receiver<DndMessage>,
 }
@@ -54,7 +61,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        tab.kind.ui(ui, &self.tx, &self.rx);
+        tab.kind.ui(ui, self.state, self.tx, self.rx);
     }
 
     fn add_popup(&mut self, ui: &mut egui::Ui, surface: SurfaceIndex, node: NodeIndex) {

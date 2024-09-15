@@ -6,26 +6,20 @@ use std::{
     thread,
 };
 
-use common::message::DndMessage;
+use common::{message::DndMessage, User};
 use eframe::egui;
+use egui::{CentralPanel, Window};
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex};
 use listener::{DndListener, Signal};
 use message_io::events::EventSender;
+use state::DndState;
 use view::DndTab;
 
 mod listener;
+mod state;
 mod view;
 
 fn main() -> eframe::Result {
-    let (tx_listener, rx_main) = channel();
-
-    let listener =
-        DndListener::new(tx_listener).map_err(|x| eframe::Error::AppCreation(x.into()))?;
-
-    let tx_main = listener.event_sender();
-
-    thread::spawn(move || listener.run());
-
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
@@ -38,7 +32,7 @@ fn main() -> eframe::Result {
             // This gives us image support:
             egui_extras::install_image_loaders(&cc.egui_ctx);
 
-            Ok(Box::new(MyApp::new(tx_main, rx_main)))
+            Ok(Box::new(MyApp::new()))
         }),
     )
 }
@@ -46,13 +40,17 @@ fn main() -> eframe::Result {
 struct MyApp {
     tree: DockState<DndTab>,
     counter: usize,
+    state: DndState,
 
-    tx: EventSender<Signal>,
-    rx: Receiver<DndMessage>,
+    server_ip: String,
+    user_string: String,
+
+    tx: Option<EventSender<Signal>>,
+    rx: Option<Receiver<DndMessage>>,
 }
 
 impl MyApp {
-    pub fn new(tx: EventSender<Signal>, rx: Receiver<DndMessage>) -> Self {
+    pub fn new() -> Self {
         let tree = DockState::new(vec![
             DndTab::from_tab(view::Chat::default(), SurfaceIndex::main(), NodeIndex(1)),
             DndTab::from_tab(view::Board, SurfaceIndex::main(), NodeIndex(2)),
@@ -61,38 +59,83 @@ impl MyApp {
         Self {
             tree,
             counter: 3,
-            tx,
-            rx,
+            tx: None,
+            rx: None,
+            state: Default::default(),
+            server_ip: Default::default(),
+            user_string: Default::default(),
         }
+    }
+
+    fn show_login(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        CentralPanel::default().show(ctx, |_| {
+            Window::new("Login").collapsible(false).show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Server: ");
+                    ui.text_edit_singleline(&mut self.server_ip);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Name: ");
+                    let input = ui.text_edit_singleline(&mut self.user_string);
+                    if input.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        let user = User {
+                            name: self.user_string.clone(),
+                        };
+
+                        self.state.user = Some(user.clone());
+
+                        // Create the server listener with the user that we've selected
+                        let (tx_listener, rx_main) = channel();
+
+                        let listener =
+                            DndListener::new(tx_listener, user, &self.server_ip).unwrap();
+
+                        self.tx = Some(listener.event_sender());
+                        self.rx = Some(rx_main);
+
+                        thread::spawn(move || listener.run());
+                    }
+                })
+            });
+        });
     }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let mut added_nodes = Vec::new();
+        if self.state.user.is_none() {
+            self.show_login(ctx, _frame);
+        } else {
+            let mut added_nodes = Vec::new();
 
-        DockArea::new(&mut self.tree)
-            .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
-            .show_add_buttons(true)
-            .show_add_popup(true)
-            .show(
-                ctx,
-                &mut view::TabViewer {
-                    added_nodes: &mut added_nodes,
-                    tx: &self.tx,
-                    rx: &self.rx,
-                },
-            );
+            DockArea::new(&mut self.tree)
+                .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
+                .show_add_buttons(true)
+                .show_add_popup(true)
+                .show(
+                    ctx,
+                    &mut view::TabViewer {
+                        added_nodes: &mut added_nodes,
+                        state: &self.state,
+                        tx: self.tx.as_ref().unwrap(),
+                        rx: self.rx.as_ref().unwrap(),
+                    },
+                );
 
-        added_nodes.drain(..).for_each(|node| {
-            self.tree
-                .set_focused_node_and_surface((node.surface, node.node));
-            self.tree.push_to_focused_leaf(DndTab {
-                kind: node.kind,
-                surface: node.surface,
-                node: NodeIndex(self.counter),
+            added_nodes.drain(..).for_each(|node| {
+                self.tree
+                    .set_focused_node_and_surface((node.surface, node.node));
+                self.tree.push_to_focused_leaf(DndTab {
+                    kind: node.kind,
+                    surface: node.surface,
+                    node: NodeIndex(self.counter),
+                });
+                self.counter += 1;
             });
-            self.counter += 1;
-        })
+
+            for msg in self.rx.as_ref().unwrap().try_iter() {
+                self.state.process(msg);
+            }
+        }
     }
 }

@@ -4,7 +4,7 @@ use std::{
     sync::mpsc::{Receiver, Sender},
 };
 
-use common::message::DndMessage;
+use common::{message::DndMessage, User};
 use message_io::{
     events::EventSender,
     network::{Endpoint, NetEvent, Transport},
@@ -22,6 +22,7 @@ impl From<DndMessage> for Signal {
 }
 
 pub struct DndListener {
+    user: User,
     handler: NodeHandler<Signal>,
     node_listener: Option<NodeListener<Signal>>,
     server_endpoint: Endpoint,
@@ -29,12 +30,12 @@ pub struct DndListener {
 }
 
 impl DndListener {
-    pub fn new(tx: Sender<DndMessage>) -> io::Result<Self> {
+    pub fn new(tx: Sender<DndMessage>, user: User, server_addr: &str) -> io::Result<Self> {
         let (handler, node_listener) = node::split();
-        let server_addr = "127.0.0.1:80";
         let (endpoint, _) = handler.network().connect(Transport::Ws, server_addr)?;
 
         Ok(Self {
+            user,
             handler,
             node_listener: Some(node_listener),
             server_endpoint: endpoint,
@@ -54,7 +55,7 @@ impl DndListener {
                 NetEvent::Connected(endpoint, established) => {
                     if endpoint == self.server_endpoint {
                         if established {
-                            let message = DndMessage::RegisterUser("JoingleBob".into());
+                            let message = DndMessage::RegisterUser(self.user.name.clone());
                             let output_data = bincode::serialize(&message).unwrap();
                             self.handler
                                 .network()
