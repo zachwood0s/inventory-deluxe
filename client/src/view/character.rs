@@ -1,10 +1,49 @@
 use common::Item;
 use egui::{
-    collapsing_header, popup_below_widget, text::LayoutJob, tooltip_id, CentralPanel,
-    CollapsingHeader, Color32, DragValue, Frame, RichText, Widget,
+    collapsing_header, panel::TopBottomSide, popup_below_widget, text::LayoutJob, tooltip_id,
+    CentralPanel, CollapsingHeader, Color32, DragValue, Frame, Label, Margin, Resize, RichText,
+    TopBottomPanel, Widget,
 };
+use egui_extras::{Strip, StripBuilder};
 
 use super::DndTabImpl;
+
+pub struct StatWidget {
+    name: String,
+    value: u32,
+}
+
+impl StatWidget {
+    pub fn new(name: impl ToString, value: u32) -> Self {
+        Self {
+            name: name.to_string(),
+            value,
+        }
+    }
+}
+
+impl egui::Widget for StatWidget {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        Frame::none()
+            .stroke(egui::Stroke {
+                width: 1.0,
+                color: Color32::LIGHT_GRAY,
+            })
+            .inner_margin(Margin::same(5.0))
+            .show(ui, |ui| {
+                Resize::default()
+                    .resizable(false)
+                    .default_size([40.0, 40.0])
+                    .show(ui, |ui| {
+                        ui.vertical_centered_justified(|ui| {
+                            ui.label(self.name);
+                            ui.heading(self.value.to_string());
+                        });
+                    });
+            })
+            .response
+    }
+}
 
 #[derive(Default)]
 pub struct Character {
@@ -78,7 +117,21 @@ impl DndTabImpl for Character {
         tx: &message_io::events::EventSender<crate::listener::Signal>,
         rx: &std::sync::mpsc::Receiver<common::message::DndMessage>,
     ) {
-        ui.label("Character Sheet");
+        TopBottomPanel::top("stats")
+            .min_height(100.0)
+            .resizable(false)
+            .show_inside(ui, |ui| {
+                ui.heading("Gleebo");
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    StatWidget::new("CHR", 10).ui(ui);
+                    StatWidget::new("STR", 10).ui(ui);
+                    StatWidget::new("WIS", 10).ui(ui);
+                    StatWidget::new("INT", 10).ui(ui);
+                    StatWidget::new("DEX", 10).ui(ui);
+                    StatWidget::new("CON", 10).ui(ui);
+                });
+            });
 
         CentralPanel::default().show_inside(ui, |ui| {
             ui.heading("Items");

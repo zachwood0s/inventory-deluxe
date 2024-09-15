@@ -169,6 +169,20 @@ impl DndServer {
         info!("{}'s items {}", user.name, res);
         let items: Vec<DBItemResponse> = serde_json::from_str(&res)?;
 
+        let res = futures::executor::block_on(async {
+            let resp = self
+                .db
+                .from("character")
+                .select("*,inventory(*, items(*))")
+                .eq("name", user.name.clone())
+                .execute()
+                .await
+                .unwrap();
+            resp.text().await
+        })?;
+
+        info!("Test query resp {}", res);
+
         Ok(items.into_iter().map(|x| x.into()).collect())
     }
 
