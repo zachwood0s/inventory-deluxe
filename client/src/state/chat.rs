@@ -2,8 +2,8 @@ use common::{message::DndMessage, User};
 use egui::Color32;
 
 pub struct LogMessage {
-    user: User,
-    message: String,
+    pub user: User,
+    pub message: String,
 }
 
 impl LogMessage {
@@ -11,10 +11,12 @@ impl LogMessage {
         Self { user, message }
     }
 
-    pub fn ui(&self, ui: &mut egui::Ui) {
-        ui.colored_label(Color32::LIGHT_BLUE, format!("{}: ", self.user.name));
+    pub fn ui(&self, ui: &mut egui::Ui, display_name: bool) {
+        if display_name {
+            ui.separator();
+            ui.colored_label(Color32::LIGHT_BLUE, format!("{}: ", self.user.name));
+        }
         ui.label(&self.message);
-        ui.separator();
     }
 }
 
@@ -30,6 +32,9 @@ impl ChatState {
             DndMessage::Chat(user, msg) => self
                 .log_messages
                 .push(LogMessage::new(user.clone(), msg.clone())),
+            DndMessage::ItemList(list) => {
+                println!("Recieved item list {list:?}");
+            }
             _ => {}
         }
     }

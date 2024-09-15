@@ -1,22 +1,30 @@
 use std::{
     collections::HashMap,
+    error::Error,
     io,
     net::{SocketAddr, ToSocketAddrs},
 };
 
+use log::{error, info, warn};
 use message_io::{
     network::{Endpoint, NetEvent, Transport},
     node::{self, NodeHandler, NodeListener},
 };
 
-use common::{message::DndMessage, User};
+use common::{message::DndMessage, Item, User};
+use postgrest::Postgrest;
+
+mod db_types;
+use db_types::*;
 
 struct ClientInfo {
     user_data: User,
     endpoint: Endpoint,
 }
 
-fn main() -> io::Result<()> {
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    env_logger::init();
     let server = DndServer::new("0.0.0.0", 80)?;
     server.run();
 
@@ -27,6 +35,7 @@ pub struct DndServer {
     handler: NodeHandler<()>,
     node_listener: Option<NodeListener<()>>,
     users: HashMap<String, ClientInfo>,
+    db: Postgrest,
 }
 
 impl DndServer {
@@ -36,9 +45,18 @@ impl DndServer {
 
         handler.network().listen(Transport::Ws, addr)?;
 
-        println!("Server running at {}", addr);
+        let url = dotenv::var("NEXT_PUBLIC_SUPABASE_URL").unwrap();
+        let db = Postgrest::new(url).insert_header(
+            "apikey",
+            dotenv::var("NEXT_PUBLIC_SUPABASE_ANON_KEY").unwrap(),
+        );
+
+        info!("Connected to DB");
+
+        info!("Server running at {}", addr);
 
         Ok(Self {
+            db,
             handler,
             node_listener: Some(node_listener),
             users: HashMap::new(),
@@ -61,8 +79,15 @@ impl DndServer {
                     }
                     DndMessage::UserNotificationRemoved(_) => todo!(),
                     DndMessage::Chat(user, msg) => self.broadcast_log_message(user, msg),
+                    DndMessage::RetrieveItemList(user) => {
+                        if let Ok(list) = self.get_item_list(user) {
+                            let msg = DndMessage::ItemList(list);
+                            let encoded = bincode::serialize(&msg).unwrap();
+                            self.handler.network().send(endpoint, &encoded);
+                        }
+                    }
                     _ => {
-                        println!("Unhandled message {message:?}");
+                        warn!("Unhandled message {message:?}");
                     }
                 }
             }
@@ -104,9 +129,9 @@ impl DndServer {
                 },
             );
 
-            println!("Added user '{}'", name);
+            info!("Added user '{}'", name);
         } else {
-            println!(
+            info!(
                 "User with name '{}' already exists, whart are you doing??",
                 name
             );
@@ -121,10 +146,30 @@ impl DndServer {
                 self.handler.network().send(user.endpoint, &output_data);
             }
 
-            println!("Removed participant '{}'", name);
+            info!("Removed participant '{}'", name);
         } else {
-            println!("Cannot unregister a user '{}' who doesn't exist??", name);
+            error!("Cannot unregister a user '{}' who doesn't exist??", name);
         }
+    }
+
+    fn get_item_list(&self, user: User) -> Result<Vec<Item>, Box<dyn Error>> {
+        info!("Retrieving item list for {}", user.name);
+        let res = futures::executor::block_on(async {
+            let resp = self
+                .db
+                .from("inventory")
+                .select("count,items(*)")
+                .eq("player", user.name.clone())
+                .execute()
+                .await
+                .unwrap();
+            resp.text().await
+        })?;
+
+        info!("{}'s items {}", user.name, res);
+        let items: Vec<DBItemResponse> = serde_json::from_str(&res)?;
+
+        Ok(items.into_iter().map(|x| x.into()).collect())
     }
 
     fn broadcast_log_message(&self, username: User, msg: String) {

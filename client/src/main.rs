@@ -15,12 +15,24 @@ use message_io::events::EventSender;
 use state::DndState;
 use view::DndTab;
 
+use clap::Parser;
+
 mod listener;
 mod state;
 mod view;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    ip: Option<String>,
+    name: Option<String>,
+}
+
 fn main() -> eframe::Result {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+
+    let args = Args::parse();
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
         ..Default::default()
@@ -32,7 +44,9 @@ fn main() -> eframe::Result {
             // This gives us image support:
             egui_extras::install_image_loaders(&cc.egui_ctx);
 
-            Ok(Box::new(MyApp::new()))
+            cc.egui_ctx.set_pixels_per_point(1.5);
+
+            Ok(Box::new(MyApp::new(args)))
         }),
     )
 }
@@ -50,7 +64,7 @@ struct MyApp {
 }
 
 impl MyApp {
-    pub fn new() -> Self {
+    pub fn new(args: Args) -> Self {
         let tree = DockState::new(vec![
             DndTab::from_tab(view::Chat::default(), SurfaceIndex::main(), NodeIndex(1)),
             DndTab::from_tab(view::Board, SurfaceIndex::main(), NodeIndex(2)),
@@ -62,8 +76,8 @@ impl MyApp {
             tx: None,
             rx: None,
             state: Default::default(),
-            server_ip: Default::default(),
-            user_string: Default::default(),
+            server_ip: args.ip.unwrap_or_default(),
+            user_string: args.name.unwrap_or_default(),
         }
     }
 

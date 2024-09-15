@@ -1,9 +1,11 @@
 mod board;
+mod character;
 mod chat;
 
 use std::sync::mpsc::Receiver;
 
 pub use board::*;
+pub use character::*;
 pub use chat::*;
 use common::message::DndMessage;
 use egui_dock::{NodeIndex, SurfaceIndex};
@@ -75,6 +77,10 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         if ui.button("Game Board").clicked() {
             self.added_nodes
                 .push(DndTab::from_tab(Board, surface, node))
+        }
+        if ui.button("Character").clicked() {
+            self.added_nodes
+                .push(DndTab::from_tab(Character::default(), surface, node))
         }
     }
 }

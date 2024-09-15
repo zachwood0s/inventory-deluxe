@@ -60,6 +60,12 @@ impl DndListener {
                             self.handler
                                 .network()
                                 .send(self.server_endpoint, &output_data);
+
+                            let message = DndMessage::RetrieveItemList(self.user.clone());
+                            let output_data = bincode::serialize(&message).unwrap();
+                            self.handler
+                                .network()
+                                .send(self.server_endpoint, &output_data);
                         } else {
                             println!("Could not connect to the server");
                         }

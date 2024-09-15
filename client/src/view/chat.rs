@@ -46,8 +46,12 @@ impl DndTabImpl for Chat {
             ScrollArea::new([false, true])
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
+                    let mut last_user = "";
                     for msg in state.chat.log_messages.iter() {
-                        msg.ui(ui);
+                        let display_name = msg.user.name != last_user;
+                        msg.ui(ui, display_name);
+
+                        last_user = &msg.user.name;
                     }
                 });
         });

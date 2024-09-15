@@ -1,0 +1,28 @@
+use common::Item;
+
+#[derive(serde::Deserialize, Clone)]
+pub struct DBItem {
+    id: i64,
+    name: String,
+    description: String,
+    flavor_text: String,
+}
+
+#[derive(serde::Deserialize, Clone)]
+pub struct DBItemResponse {
+    count: u32,
+    items: DBItem,
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<common::Item> for DBItemResponse {
+    fn into(self) -> common::Item {
+        Item {
+            id: self.items.id,
+            count: self.count,
+            name: self.items.name,
+            description: self.items.description,
+            flavor_text: self.items.flavor_text,
+        }
+    }
+}
