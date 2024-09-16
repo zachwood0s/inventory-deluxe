@@ -1,41 +1,91 @@
-use common::{message::DndMessage, User};
-use egui::Color32;
+use crate::prelude::*;
+use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
 
-pub struct LogMessage {
+pub struct ClientLogMessage {
     pub user: User,
-    pub message: String,
+    pub message: LogMessage,
 }
 
-impl LogMessage {
-    pub fn new(user: User, message: String) -> Self {
+impl ClientLogMessage {
+    pub fn new(user: User, message: LogMessage) -> Self {
         Self { user, message }
     }
 
     pub fn ui(&self, ui: &mut egui::Ui, display_name: bool) {
-        if display_name {
+        let override_display = matches!(self.message, LogMessage::Joined(_))
+            || matches!(self.message, LogMessage::Disconnected(_));
+
+        if display_name && !override_display {
             ui.separator();
             ui.colored_label(Color32::LIGHT_BLUE, format!("{}: ", self.user.name));
         }
-        ui.label(&self.message);
+
+        match &self.message {
+            LogMessage::Chat(c) => {
+                ui.label(c);
+            }
+            LogMessage::UseItem(item, count) => {
+                let style = Style::default();
+                let mut layout_job = LayoutJob::default();
+                RichText::new(format!("Used {} ", count)).append_to(
+                    &mut layout_job,
+                    &style,
+                    FontSelection::Default,
+                    Align::LEFT,
+                );
+
+                RichText::new(format!("\"{}\"", item))
+                    .color(Color32::LIGHT_GREEN)
+                    .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
+
+                ui.label(layout_job);
+            }
+            LogMessage::Joined(joined_user) => {
+                ui.colored_label(Color32::DARK_GRAY, format!("{} joined", joined_user));
+            }
+            LogMessage::Disconnected(discon_user) => {
+                ui.colored_label(Color32::DARK_GRAY, format!("{} disconnected", discon_user));
+            }
+        };
     }
 }
 
 #[derive(Default)]
 pub struct ChatState {
-    pub log_messages: Vec<LogMessage>,
+    pub log_messages: Vec<ClientLogMessage>,
 }
 
 impl ChatState {
     pub fn process(&mut self, message: &DndMessage) {
         #[allow(clippy::single_match)]
         match message {
-            DndMessage::Chat(user, msg) => self
+            DndMessage::Log(user, msg) => self
                 .log_messages
-                .push(LogMessage::new(user.clone(), msg.clone())),
+                .push(ClientLogMessage::new(user.clone(), msg.clone())),
             DndMessage::ItemList(list) => {
                 println!("Recieved item list {list:?}");
             }
             _ => {}
+        }
+    }
+}
+
+pub mod commands {
+    use crate::prelude::*;
+
+    pub struct ChatCommand {
+        text: String,
+    }
+
+    impl ChatCommand {
+        pub fn new(text: String) -> Self {
+            Self { text }
+        }
+    }
+
+    impl Command for ChatCommand {
+        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+            tx.send(DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into())
         }
     }
 }

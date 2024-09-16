@@ -11,6 +11,8 @@ use message_io::{
     node::{self, NodeHandler, NodeListener},
 };
 
+use crate::state::DndState;
+
 pub enum Signal {
     ClientMessage(DndMessage),
 }
@@ -18,6 +20,20 @@ pub enum Signal {
 impl From<DndMessage> for Signal {
     fn from(value: DndMessage) -> Self {
         Signal::ClientMessage(value)
+    }
+}
+
+pub trait Command {
+    fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>);
+}
+
+pub struct CommandQueue<'a> {
+    pub command_queue: &'a mut Vec<Box<dyn Command>>,
+}
+
+impl<'a> CommandQueue<'a> {
+    pub fn add<T: Command + 'static>(&mut self, command: T) {
+        self.command_queue.push(Box::new(command));
     }
 }
 
@@ -61,7 +77,7 @@ impl DndListener {
                                 .network()
                                 .send(self.server_endpoint, &output_data);
 
-                            let message = DndMessage::RetrieveItemList(self.user.clone());
+                            let message = DndMessage::RetrieveCharacterData(self.user.clone());
                             let output_data = bincode::serialize(&message).unwrap();
                             self.handler
                                 .network()

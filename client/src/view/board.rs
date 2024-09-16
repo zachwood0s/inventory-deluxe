@@ -3,7 +3,10 @@ use std::sync::mpsc::Receiver;
 use common::message::DndMessage;
 use message_io::events::EventSender;
 
-use crate::{listener::Signal, state::DndState};
+use crate::{
+    listener::{CommandQueue, Signal},
+    state::DndState,
+};
 
 use super::DndTabImpl;
 
@@ -11,13 +14,7 @@ use super::DndTabImpl;
 pub struct Board;
 
 impl DndTabImpl for Board {
-    fn ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        state: &DndState,
-        tx: &EventSender<Signal>,
-        rx: &Receiver<DndMessage>,
-    ) {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, network: &mut CommandQueue) {
         ui.label("Board goes here!");
     }
 

@@ -9,8 +9,8 @@ use std::{
 use common::{message::DndMessage, User};
 use eframe::egui;
 use egui::{CentralPanel, Window};
-use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex};
-use listener::{DndListener, Signal};
+use egui_dock::{tab_viewer, DockArea, DockState, NodeIndex, SurfaceIndex};
+use listener::{CommandQueue, DndListener, Signal};
 use message_io::events::EventSender;
 use state::DndState;
 use view::DndTab;
@@ -18,6 +18,7 @@ use view::DndTab;
 use clap::Parser;
 
 mod listener;
+mod prelude;
 mod state;
 mod view;
 
@@ -34,7 +35,7 @@ fn main() -> eframe::Result {
     let args = Args::parse();
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -122,19 +123,31 @@ impl eframe::App for MyApp {
         } else {
             let mut added_nodes = Vec::new();
 
-            DockArea::new(&mut self.tree)
-                .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
-                .show_add_buttons(true)
-                .show_add_popup(true)
-                .show(
-                    ctx,
-                    &mut view::TabViewer {
-                        added_nodes: &mut added_nodes,
-                        state: &self.state,
-                        tx: self.tx.as_ref().unwrap(),
-                        rx: self.rx.as_ref().unwrap(),
+            let mut command_queue = Vec::new();
+
+            {
+                let mut tab_viewer = view::TabViewer {
+                    added_nodes: &mut added_nodes,
+                    state: &self.state,
+                    network: CommandQueue {
+                        command_queue: &mut command_queue,
                     },
-                );
+                };
+
+                DockArea::new(&mut self.tree)
+                    .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
+                    .show_add_buttons(true)
+                    .show_add_popup(true)
+                    .show(ctx, &mut tab_viewer);
+            }
+
+            for msg in self.rx.as_ref().unwrap().try_iter() {
+                self.state.process(msg);
+            }
+
+            for command in command_queue.drain(..) {
+                command.execute(&mut self.state, self.tx.as_ref().unwrap());
+            }
 
             added_nodes.drain(..).for_each(|node| {
                 self.tree
@@ -146,10 +159,6 @@ impl eframe::App for MyApp {
                 });
                 self.counter += 1;
             });
-
-            for msg in self.rx.as_ref().unwrap().try_iter() {
-                self.state.process(msg);
-            }
         }
     }
 }

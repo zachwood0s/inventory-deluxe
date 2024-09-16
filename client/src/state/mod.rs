@@ -15,4 +15,8 @@ impl DndState {
         self.chat.process(&message);
         self.character.process(&message);
     }
+
+    pub fn owned_user(&self) -> User {
+        self.user.clone().unwrap()
+    }
 }

@@ -15,4 +15,5 @@ env_logger = { workspace = true }
 serde = { workspace = true }
 bincode = { workspace = true }
 message-io = { workspace = true }
+log = { workspace = true }
 clap = { version = "4.5.17", features = ["derive"] }

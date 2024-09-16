@@ -4,7 +4,10 @@ use common::{message::DndMessage, User};
 use egui::{Color32, ScrollArea, TextEdit, Widget};
 use message_io::events::EventSender;
 
-use crate::{listener::Signal, state::DndState};
+use crate::{
+    listener::{CommandQueue, Signal},
+    state::{chat::commands::ChatCommand, DndState},
+};
 
 use super::DndTabImpl;
 
@@ -14,13 +17,7 @@ pub struct Chat {
 }
 
 impl DndTabImpl for Chat {
-    fn ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        state: &DndState,
-        tx: &EventSender<Signal>,
-        rx: &Receiver<DndMessage>,
-    ) {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, network: &mut CommandQueue) {
         egui::TopBottomPanel::bottom("chat_box")
             .resizable(false)
             .min_height(30.0)
@@ -33,9 +30,7 @@ impl DndTabImpl for Chat {
                     if submitted.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         submitted.request_focus();
 
-                        tx.send(
-                            DndMessage::Chat(state.user.clone().unwrap(), self.text.clone()).into(),
-                        );
+                        network.add(ChatCommand::new(self.text.clone()));
 
                         self.text.clear();
                     }
