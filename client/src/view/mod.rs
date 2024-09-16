@@ -1,6 +1,7 @@
 mod board;
 mod character;
 mod chat;
+mod items;
 
 use std::sync::mpsc::Receiver;
 
@@ -9,6 +10,7 @@ pub use character::*;
 pub use chat::*;
 use common::message::DndMessage;
 use egui_dock::{NodeIndex, SurfaceIndex};
+pub use items::*;
 use message_io::events::EventSender;
 
 use crate::{
@@ -17,7 +19,7 @@ use crate::{
 };
 
 pub trait DndTabImpl {
-    fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, network: &mut CommandQueue);
+    fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, commands: &mut CommandQueue);
     fn title(&self) -> String;
 }
 
@@ -77,6 +79,10 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         if ui.button("Character").clicked() {
             self.added_nodes
                 .push(DndTab::from_tab(Character::default(), surface, node))
+        }
+        if ui.button("Items").clicked() {
+            self.added_nodes
+                .push(DndTab::from_tab(Items::default(), surface, node))
         }
     }
 }

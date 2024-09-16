@@ -31,6 +31,7 @@ pub struct Character {
     pub chr: i16,
     pub dex: i16,
     pub con: i16,
+    pub tagline: String,
     pub backstory: String,
 }
 
