@@ -213,6 +213,21 @@ impl Board {
 }
 
 impl DndTabImpl for Board {
+    // TODO: Problem: how to get the server updates into the Tab here. Typically I've been wanting
+    // to keep the state modifications that need to be synced out of the tab itself but because I
+    // want responsive grid I think its best to put the updates in the tab itself. I'll need to
+    // route them from the rx portion into the tab somehow. I could also have a shadow copy of the
+    // state where I route commands to but not sure that fixes my problem. If I store in the tab,
+    // if I close and need to reopen I'll have to ask the server for the current board data (not
+    // hard). Maybe I'm dumb and the commands would actually fix the issue (more I  think about it
+    // the more I think that might be the case. Just need careful handling of the repaint logic)
+    //
+    // TODO: Most likely when doing updates I'll just want to pass the updates, not the full board
+    // state. That way we won't have people overriding eachothers changes (or at least will
+    // mimimize that).
+    //
+    // TODO: Need to be able to add/remove things to the board (and obviously tell the server something
+    // has been added/removed)
     fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, network: &mut CommandQueue) {
         Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui));
     }
