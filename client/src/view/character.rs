@@ -56,28 +56,31 @@ impl DndTabImpl for Character {
     fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, commands: &mut CommandQueue) {
         let char = &state.character.character;
 
-        ui.horizontal(|ui| {
-            ui.heading(&char.name);
-            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                if ui.button("Refresh").clicked() {
-                    commands.add(RefreshCharacter);
-                }
-            })
-        });
+        egui::CentralPanel::default().show_inside(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.heading(&char.name);
+                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                    if ui.button("Refresh").clicked() {
+                        commands.add(RefreshCharacter);
+                    }
+                })
+            });
 
-        ui.add_space(4.0);
+            ui.add_space(4.0);
 
-        ui.label(RichText::new(format!("\"{}\"", char.tagline)).italics());
-
-        ui.add_space(4.0);
-
-        ui.horizontal(|ui| {
-            StatWidget::new("CHR", char.chr).ui(ui);
-            StatWidget::new("STR", char.str).ui(ui);
-            StatWidget::new("WIS", char.wis).ui(ui);
-            StatWidget::new("INT", char.int).ui(ui);
-            StatWidget::new("DEX", char.dex).ui(ui);
-            StatWidget::new("CON", char.con).ui(ui);
+            ui.label(RichText::new(format!("\"{}\"", char.tagline)).italics());
+            ui.separator();
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                StatWidget::new("CHR", char.chr).ui(ui);
+                StatWidget::new("STR", char.str).ui(ui);
+                StatWidget::new("WIS", char.wis).ui(ui);
+                StatWidget::new("INT", char.int).ui(ui);
+                StatWidget::new("DEX", char.dex).ui(ui);
+                StatWidget::new("CON", char.con).ui(ui);
+            });
+            ui.add_space(6.0);
+            ui.separator();
         });
     }
 

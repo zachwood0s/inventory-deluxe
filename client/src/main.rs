@@ -68,7 +68,7 @@ impl MyApp {
     pub fn new(args: Args) -> Self {
         let tree = DockState::new(vec![
             DndTab::from_tab(view::Chat::default(), SurfaceIndex::main(), NodeIndex(1)),
-            DndTab::from_tab(view::Board, SurfaceIndex::main(), NodeIndex(2)),
+            DndTab::from_tab(view::Board::default(), SurfaceIndex::main(), NodeIndex(2)),
         ]);
 
         Self {

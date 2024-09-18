@@ -12,12 +12,14 @@ impl ClientLogMessage {
     }
 
     pub fn ui(&self, ui: &mut egui::Ui, display_name: bool) {
-        let override_display = matches!(self.message, LogMessage::Joined(_))
+        let hide_name = matches!(self.message, LogMessage::Joined(_))
             || matches!(self.message, LogMessage::Disconnected(_));
 
-        if display_name && !override_display {
+        if display_name {
             ui.separator();
-            ui.colored_label(Color32::LIGHT_BLUE, format!("{}: ", self.user.name));
+            if !hide_name {
+                ui.colored_label(Color32::LIGHT_BLUE, format!("{}: ", self.user.name));
+            }
         }
 
         match &self.message {

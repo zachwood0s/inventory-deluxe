@@ -74,7 +74,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         }
         if ui.button("Game Board").clicked() {
             self.added_nodes
-                .push(DndTab::from_tab(Board, surface, node))
+                .push(DndTab::from_tab(Board::default(), surface, node))
         }
         if ui.button("Character").clicked() {
             self.added_nodes

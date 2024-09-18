@@ -100,11 +100,13 @@ pub struct Items {
 
 impl DndTabImpl for Items {
     fn ui(&mut self, ui: &mut Ui, state: &DndState, commands: &mut CommandQueue) {
-        ui.heading("Items");
-        for (idx, item) in state.character.items.iter().enumerate() {
-            ItemWidget::new(idx, item.clone(), &mut self.use_num, commands).ui(ui);
-            ui.separator();
-        }
+        egui::CentralPanel::default().show_inside(ui, |ui| {
+            ui.heading("Items");
+            for (idx, item) in state.character.items.iter().enumerate() {
+                ItemWidget::new(idx, item.clone(), &mut self.use_num, commands).ui(ui);
+                ui.separator();
+            }
+        });
     }
 
     fn title(&self) -> String {
