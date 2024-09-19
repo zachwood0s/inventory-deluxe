@@ -1,91 +1,57 @@
-use clap::builder::styling::Color;
-use egui::{
-    epaint::PathStroke, Color32, Frame, Image, Painter, Pos2, Rect, Rounding, Shape, TextureId,
-};
-use emath::{Rangef, RectTransform};
+use crate::prelude::*;
+use egui::{epaint::PathStroke, Color32, DragValue, Frame, Painter, Rect, Shape, Widget};
+use emath::RectTransform;
+use log::info;
 
 use crate::{
-    listener::{CommandQueue, Signal},
-    state::DndState,
+    listener::CommandQueue,
+    state::{
+        board::{self},
+        DndState,
+    },
 };
 
 use super::DndTabImpl;
 
-pub struct PlayerPiece {
-    rect: Rect,
-    image: Option<TextureId>,
-    color: Option<Color32>,
-    dragged: bool,
-    selected: bool,
-}
-
-impl PlayerPiece {
-    fn drop(&mut self) {
-        let center = self.rect.center();
-        let center = (center / Board::GRID_SIZE).round() * Board::GRID_SIZE;
-        self.rect.set_center(center);
-        self.dragged = false;
-    }
-
-    fn drag(&mut self) {
-        self.dragged = true;
-    }
-
-    fn draw_shape(&self, to_screen: RectTransform) -> egui::Shape {
-        let transformed = to_screen.transform_rect(self.rect);
-        if self.dragged {
-            egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::GREEN)
-        } else if self.selected {
-            egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::RED)
-        } else {
-            egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::WHITE)
-        }
-    }
-}
-
 pub struct Board {
-    players: Vec<PlayerPiece>,
-    dragged_idx: Option<usize>,
-    selected_idx: Option<usize>,
+    mouse_pos: Pos2,
     grid_origin: Pos2,
     zoom: f32,
+    show_grid: bool,
+    width: u32,
+    height: u32,
 }
 
 impl Default for Board {
     fn default() -> Self {
         Self {
-            players: vec![
-                PlayerPiece {
-                    rect: Rect::from_center_size(Pos2::ZERO, egui::Vec2::new(0.1, 0.1)),
-                    image: None,
-                    color: None,
-                    dragged: false,
-                    selected: false,
-                },
-                PlayerPiece {
-                    rect: Rect::from_center_size(Pos2::new(0.2, 0.0), egui::Vec2::new(0.1, 0.1)),
-                    image: None,
-                    color: None,
-                    dragged: false,
-                    selected: false,
-                },
-            ],
+            mouse_pos: Pos2::ZERO,
             grid_origin: Pos2::ZERO,
-            dragged_idx: None,
-            selected_idx: None,
             zoom: 1.0,
+            show_grid: false,
+            width: 0,
+            height: 0,
         }
     }
 }
 
 impl Board {
-    const GRID_SIZE: f32 = 0.1;
+    pub const GRID_SIZE: f32 = 0.1;
 
-    fn ui_content(&mut self, ui: &mut egui::Ui) -> egui::Response {
+    fn ui_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        state: &DndState,
+        commands: &mut CommandQueue,
+    ) -> egui::Response {
         let (mut response, painter) = ui.allocate_painter(
             ui.available_size_before_wrap(),
             egui::Sense::click_and_drag(),
         );
+
+        if let Some(pos) = response.interact_pointer_pos() {
+            self.mouse_pos = pos;
+        }
 
         let dims = response.rect.square_proportions() * self.zoom.sqrt();
         let to_screen = emath::RectTransform::from_to(
@@ -95,48 +61,66 @@ impl Board {
 
         let from_screen = to_screen.inverse();
 
-        if let Some(dragged) = self.get_dragged_player_mut() {
+        if let Some(dragged) = state.board.dragged_idx {
             // We have a selected piece so move its position
             if let Some(pointer_pos) = response.interact_pointer_pos() {
                 let canvas_pos = from_screen * pointer_pos;
-                dragged.rect.set_center(canvas_pos);
-                response.mark_changed();
+                commands.add(board::commands::SetPlayerPosition::new(dragged, canvas_pos));
             } else {
-                dragged.drop();
-                self.dragged_idx = None;
-                response.mark_changed();
+                commands.add(board::commands::Drop)
             }
         } else if response.dragged_by(egui::PointerButton::Primary) {
             // Handle initial dragging of a piece
-            if let Some((idx, player)) = response
+            if let Some(idx) = response
                 .interact_pointer_pos()
-                .and_then(|x| self.find_selected_player_mut(from_screen * x))
+                .and_then(|x| state.board.find_selected_player_idx(from_screen * x))
             {
-                player.drag();
-                self.dragged_idx = Some(idx);
-                response.mark_changed();
+                commands.add(board::commands::Drag(idx));
             }
         } else if response.clicked_by(egui::PointerButton::Primary) {
             // Handle selection of a piece
-            self.unselect_other_player();
-            if let Some((idx, player)) = response
+            let selected_idx = response
                 .interact_pointer_pos()
-                .and_then(|x| self.find_selected_player_mut(from_screen * x))
-            {
-                player.selected = true;
-                self.selected_idx = Some(idx);
-            }
-            response.mark_changed();
+                .and_then(|x| state.board.find_selected_player_idx(from_screen * x));
+
+            commands.add(board::commands::Select(selected_idx));
         } else if response.dragged_by(egui::PointerButton::Middle) {
             let screen_origin = to_screen * self.grid_origin;
             self.grid_origin = from_screen * (screen_origin - response.drag_delta());
+        } else if ui.input(|input| input.key_pressed(egui::Key::Delete)) {
+            if let Some(selected) = state.board.selected_idx {}
         }
+
+        response.context_menu(|ui| {
+            ui.menu_button("Add Piece", |ui| {
+                DragValue::new(&mut self.width)
+                    .prefix("w: ")
+                    .range(1..=10)
+                    .ui(ui);
+                DragValue::new(&mut self.height)
+                    .prefix("h: ")
+                    .range(1..=10)
+                    .ui(ui);
+                if ui.button("Add").clicked() {
+                    info!("{} {}", from_screen * self.mouse_pos, self.mouse_pos);
+                    commands.add(board::commands::AddPiece(
+                        from_screen * self.mouse_pos,
+                        Vec2::new(self.width as f32, self.height as f32),
+                    ));
+                }
+            });
+
+            ui.checkbox(&mut self.show_grid, "Grid");
+        });
 
         self.handle_zoom(ui);
 
-        self.draw_grid(dims, &painter, &to_screen);
+        if self.show_grid {
+            self.draw_grid(dims, &painter, &to_screen);
+        }
 
-        let shapes = self
+        let shapes = state
+            .board
             .players
             .iter()
             .map(|player| player.draw_shape(to_screen));
@@ -157,8 +141,8 @@ impl Board {
         for y in (0..num_y).map(|x| x as f32 * Board::GRID_SIZE + y_start) {
             painter.add(Shape::line_segment(
                 [
-                    to_screen * Pos2::new(-dims.x, y),
-                    to_screen * Pos2::new(dims.x, y),
+                    to_screen * Pos2::new(-dims.x + self.grid_origin.x, y),
+                    to_screen * Pos2::new(dims.x + self.grid_origin.x, y),
                 ],
                 PathStroke::new(1.0, Color32::DARK_GRAY),
             ));
@@ -169,8 +153,8 @@ impl Board {
         for x in (0..num_x).map(|x| x as f32 * Board::GRID_SIZE + x_start) {
             painter.add(Shape::line_segment(
                 [
-                    to_screen * Pos2::new(x, -dims.y),
-                    to_screen * Pos2::new(x, dims.y),
+                    to_screen * Pos2::new(x, -dims.y + self.grid_origin.y),
+                    to_screen * Pos2::new(x, dims.y + self.grid_origin.y),
                 ],
                 PathStroke::new(1.0, Color32::DARK_GRAY),
             ));
@@ -183,32 +167,6 @@ impl Board {
         const MIN_ZOOM: f32 = 0.5;
         self.zoom += ui.input(|i| i.smooth_scroll_delta.y) * ZOOM_FACTOR;
         self.zoom = self.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
-    }
-
-    fn get_dragged_player_mut(&mut self) -> Option<&mut PlayerPiece> {
-        self.dragged_idx.and_then(|x| self.players.get_mut(x))
-    }
-
-    fn get_selected_player_mut(&mut self) -> Option<&mut PlayerPiece> {
-        self.selected_idx.and_then(|x| self.players.get_mut(x))
-    }
-
-    fn unselect_other_player(&mut self) {
-        for player in self.players.iter_mut() {
-            if player.selected {
-                player.selected = false;
-            }
-        }
-        self.selected_idx = None
-    }
-
-    fn find_selected_player_mut(&mut self, pointer_pos: Pos2) -> Option<(usize, &mut PlayerPiece)> {
-        for (idx, player) in self.players.iter_mut().enumerate() {
-            if player.rect.contains(pointer_pos) {
-                return Some((idx, player));
-            }
-        }
-        None
     }
 }
 
@@ -228,8 +186,8 @@ impl DndTabImpl for Board {
     //
     // TODO: Need to be able to add/remove things to the board (and obviously tell the server something
     // has been added/removed)
-    fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, network: &mut CommandQueue) {
-        Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui));
+    fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, commands: &mut CommandQueue) {
+        Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui, state, commands));
     }
 
     fn title(&self) -> String {
