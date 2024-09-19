@@ -16,5 +16,6 @@ serde = { workspace = true }
 bincode = { workspace = true }
 message-io = { workspace = true }
 log = { workspace = true }
+uuid = { workspace = true, features = ["zerocopy", "v4", "bytemuck", "serde"] }
 clap = { version = "4.5.17", features = ["derive"] }
-emath = "0.28.1"
+emath = { workspace = true }

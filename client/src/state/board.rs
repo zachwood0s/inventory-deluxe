@@ -1,4 +1,5 @@
-use egui::Rounding;
+use egui::{ahash::HashMap, Rounding};
+use uuid::Uuid;
 
 use crate::prelude::*;
 
@@ -34,54 +35,66 @@ impl PlayerPiece {
     }
 }
 
+#[derive(Default)]
 pub struct BoardState {
-    pub players: Vec<PlayerPiece>,
-    pub dragged_idx: Option<usize>,
-    pub selected_idx: Option<usize>,
-}
-
-impl Default for BoardState {
-    fn default() -> Self {
-        Self {
-            players: vec![PlayerPiece {
-                rect: Rect::from_center_size(Pos2::new(0.0, 0.0), emath::Vec2::new(0.1, 0.1)),
-                image: None,
-                color: None,
-                dragged: false,
-                selected: false,
-            }],
-            dragged_idx: Default::default(),
-            selected_idx: Default::default(),
-        }
-    }
+    pub players: HashMap<uuid::Uuid, PlayerPiece>,
+    pub dragged_id: Option<uuid::Uuid>,
+    pub selected_id: Option<uuid::Uuid>,
 }
 
 impl BoardState {
     const GRID_SIZE: f32 = 0.1;
 
-    pub fn process(&mut self, message: &DndMessage) {}
+    pub fn process(&mut self, message: &DndMessage) {
+        let DndMessage::BoardMessage(msg) = message else {
+            return;
+        };
 
-    pub fn get_player_mut(&mut self, idx: usize) -> Option<&mut PlayerPiece> {
-        self.players.get_mut(idx)
+        match msg {
+            BoardMessage::AddPlayerPiece(uuid, player) => {
+                self.players.insert(
+                    *uuid,
+                    PlayerPiece {
+                        rect: Rect::from_center_size(player.position, player.size),
+                        image: None,
+                        color: None,
+                        dragged: false,
+                        selected: false,
+                    },
+                );
+            }
+            BoardMessage::UpdatePlayerLocation(uuid, new_pos) => {
+                if let Some(player) = self.players.get_mut(uuid) {
+                    player.rect.set_center(*new_pos)
+                }
+            }
+            BoardMessage::DeletePlayerPiece(uuid) => {
+                self.players.remove(uuid);
+            }
+        }
+    }
+
+    pub fn get_player_mut(&mut self, uuid: &Uuid) -> Option<&mut PlayerPiece> {
+        self.players.get_mut(uuid)
     }
 
     pub fn get_dragged_player_mut(&mut self) -> Option<&mut PlayerPiece> {
-        self.dragged_idx.and_then(|x| self.get_player_mut(x))
+        self.dragged_id.and_then(|x| self.get_player_mut(&x))
     }
 
     pub fn unselect_other_player(&mut self) {
-        for player in self.players.iter_mut() {
+        for player in self.players.values_mut() {
             if player.selected {
                 player.selected = false;
             }
         }
-        self.selected_idx = None
+        self.selected_id = None
     }
 
-    pub fn find_selected_player_idx(&self, pointer_pos: Pos2) -> Option<usize> {
-        for (idx, player) in self.players.iter().enumerate() {
+    pub fn find_selected_player_id(&self, pointer_pos: Pos2) -> Option<&Uuid> {
+        for (id, player) in self.players.iter() {
             if player.rect.contains(pointer_pos) {
-                return Some(idx);
+                return Some(id);
             }
         }
         None
@@ -93,77 +106,97 @@ pub mod commands {
     use crate::{prelude::*, view::Board};
 
     pub struct SetPlayerPosition {
-        index: usize,
+        id: Uuid,
         new_pos: Pos2,
     }
 
     impl SetPlayerPosition {
-        pub fn new(index: usize, new_pos: Pos2) -> Self {
-            Self { index, new_pos }
+        pub fn new(id: Uuid, new_pos: Pos2) -> Self {
+            Self { id, new_pos }
         }
     }
 
     impl Command for SetPlayerPosition {
-        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            if let Some(piece) = state.board.get_player_mut(self.index) {
-                piece.rect.set_center(self.new_pos);
-            }
+        fn execute(self: Box<Self>, _state: &mut DndState, tx: &EventSender<Signal>) {
+            tx.send(
+                DndMessage::BoardMessage(BoardMessage::UpdatePlayerLocation(self.id, self.new_pos))
+                    .into(),
+            );
         }
     }
 
     pub struct Drop;
     impl Command for Drop {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            if let Some(piece) = state.board.get_dragged_player_mut() {
+            if let (Some(id), Some(piece)) =
+                (state.board.dragged_id, state.board.get_dragged_player_mut())
+            {
                 piece.drop();
-                state.board.dragged_idx = None;
+
+                tx.send(
+                    DndMessage::BoardMessage(BoardMessage::UpdatePlayerLocation(
+                        id,
+                        piece.rect.center(),
+                    ))
+                    .into(),
+                );
+
+                state.board.dragged_id = None;
             }
         }
     }
 
-    pub struct Drag(pub usize);
+    pub struct Drag(pub Uuid);
     impl Command for Drag {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            if let Some(player) = state.board.get_player_mut(self.0) {
+            if let Some(player) = state.board.get_player_mut(&self.0) {
                 player.drag();
-                state.board.dragged_idx = Some(self.0);
+                state.board.dragged_id = Some(self.0);
             }
         }
     }
 
-    pub struct Select(pub Option<usize>);
+    pub struct Select(pub Option<Uuid>);
     impl Command for Select {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
             state.board.unselect_other_player();
             if let Some((idx, player)) = self
                 .0
-                .and_then(|idx| state.board.get_player_mut(idx).map(|p| (idx, p)))
+                .and_then(|idx| state.board.get_player_mut(&idx).map(|p| (idx, p)))
             {
                 player.selected = true;
-                state.board.selected_idx = Some(idx);
+                state.board.selected_id = Some(idx);
             }
         }
     }
 
     pub struct AddPiece(pub Pos2, pub Vec2);
     impl Command for AddPiece {
-        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+        fn execute(self: Box<Self>, _state: &mut DndState, tx: &EventSender<Signal>) {
             let center = self.0;
             let center = (center / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
-            state.board.players.push(PlayerPiece {
-                rect: Rect::from_center_size(center, self.1 * Board::GRID_SIZE),
-                image: None,
-                color: None,
-                dragged: false,
-                selected: false,
-            })
+            let uuid = Uuid::new_v4();
+            let size = self.1 * Board::GRID_SIZE;
+
+            tx.send(
+                DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(
+                    uuid,
+                    common::DndPlayerPiece {
+                        position: center,
+                        size,
+                        image_url: None,
+                        color: None,
+                    },
+                ))
+                .into(),
+            )
         }
     }
 
-    pub struct DeletePiece(pub usize);
+    pub struct DeletePiece(pub Uuid);
     impl Command for DeletePiece {
-        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            state.board.players.remove(self.0);
+        fn execute(self: Box<Self>, _state: &mut DndState, tx: &EventSender<Signal>) {
+            tx.send(DndMessage::BoardMessage(BoardMessage::DeletePlayerPiece(self.0)).into())
         }
     }
 }

@@ -61,7 +61,7 @@ impl Board {
 
         let from_screen = to_screen.inverse();
 
-        if let Some(dragged) = state.board.dragged_idx {
+        if let Some(dragged) = state.board.dragged_id {
             // We have a selected piece so move its position
             if let Some(pointer_pos) = response.interact_pointer_pos() {
                 let canvas_pos = from_screen * pointer_pos;
@@ -73,22 +73,23 @@ impl Board {
             // Handle initial dragging of a piece
             if let Some(idx) = response
                 .interact_pointer_pos()
-                .and_then(|x| state.board.find_selected_player_idx(from_screen * x))
+                .and_then(|x| state.board.find_selected_player_id(from_screen * x))
             {
-                commands.add(board::commands::Drag(idx));
+                commands.add(board::commands::Drag(*idx));
             }
         } else if response.clicked_by(egui::PointerButton::Primary) {
             // Handle selection of a piece
             let selected_idx = response
                 .interact_pointer_pos()
-                .and_then(|x| state.board.find_selected_player_idx(from_screen * x));
+                .and_then(|x| state.board.find_selected_player_id(from_screen * x))
+                .copied();
 
             commands.add(board::commands::Select(selected_idx));
         } else if response.dragged_by(egui::PointerButton::Middle) {
             let screen_origin = to_screen * self.grid_origin;
             self.grid_origin = from_screen * (screen_origin - response.drag_delta());
         } else if ui.input(|input| input.key_pressed(egui::Key::Delete)) {
-            if let Some(selected) = state.board.selected_idx {
+            if let Some(selected) = state.board.selected_id {
                 commands.add(board::commands::DeletePiece(selected));
             }
         }
@@ -124,7 +125,7 @@ impl Board {
         let shapes = state
             .board
             .players
-            .iter()
+            .values()
             .map(|player| player.draw_shape(to_screen));
 
         painter.extend(shapes);

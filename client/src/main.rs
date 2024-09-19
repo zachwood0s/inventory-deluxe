@@ -160,5 +160,7 @@ impl eframe::App for MyApp {
                 self.counter += 1;
             });
         }
+
+        ctx.request_repaint();
     }
 }

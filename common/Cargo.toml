@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 serde = { workspace = true }
 bincode = { workspace = true }
+uuid = { workspace = true }
+emath = { workspace = true }

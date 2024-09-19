@@ -15,6 +15,7 @@ use crate::state::DndState;
 
 pub enum Signal {
     ClientMessage(DndMessage),
+    RecieveMessage(DndMessage),
 }
 
 impl From<DndMessage> for Signal {
@@ -93,7 +94,7 @@ impl DndListener {
 
                     println!("Recieved message from server {message:?}");
 
-                    self.tx.send(message).unwrap();
+                    self.handler.signals().send(Signal::RecieveMessage(message));
                 }
                 NetEvent::Disconnected(_) => {
                     println!("Server is disconnected");
@@ -106,6 +107,14 @@ impl DndListener {
                     self.handler
                         .network()
                         .send(self.server_endpoint, &input_data);
+
+                    // Immediately send the message back to ourself
+                    //if matches!(msg, DndMessage::BoardMessage(_)) {
+                    self.handler.signals().send(Signal::RecieveMessage(msg))
+                    //}
+                }
+                Signal::RecieveMessage(msg) => {
+                    self.tx.send(msg).unwrap();
                 }
             },
         })

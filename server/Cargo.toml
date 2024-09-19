@@ -12,6 +12,7 @@ bincode = { workspace = true }
 message-io = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
+uuid = { workspace = true }
 postgrest = "1.6.0"
 dotenv = "0.15.0"
 futures = "0.3.30"

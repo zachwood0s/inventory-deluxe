@@ -1,3 +1,5 @@
+use emath::{Pos2, Vec2};
+
 pub mod message;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -35,3 +37,10 @@ pub struct Character {
     pub backstory: String,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
+pub struct DndPlayerPiece {
+    pub position: Pos2,
+    pub size: Vec2,
+    pub image_url: Option<String>,
+    pub color: Option<[u8; 4]>,
+}

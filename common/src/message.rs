@@ -1,6 +1,9 @@
 use std::net::SocketAddr;
 
-use crate::{Character, Item, User};
+use emath::Pos2;
+use uuid::Uuid;
+
+use crate::{Character, DndPlayerPiece, Item, User};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum LogMessage {
@@ -8,6 +11,13 @@ pub enum LogMessage {
     UseItem(String, u32),
     Joined(String),
     Disconnected(String),
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub enum BoardMessage {
+    AddPlayerPiece(Uuid, DndPlayerPiece),
+    UpdatePlayerLocation(Uuid, Pos2),
+    DeletePlayerPiece(Uuid),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -21,6 +31,9 @@ pub enum DndMessage {
     RetrieveCharacterData(User),
     /// (User, id, new_count)
     UpdateItemCount(User, i64, u32),
+
+    // Board
+    BoardMessage(BoardMessage),
 
     // From DndServer
     UserList(Vec<String>),
