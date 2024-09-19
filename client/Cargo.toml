@@ -11,6 +11,7 @@ eframe = "0.28.1"
 egui = { version = "0.28.1", features = ["serde"] }
 egui_dock = "0.13.0"
 egui_extras = { version = "0.28.1", features = ["all_loaders"] }
+image = { version = "0.25", features = ["jpeg", "png", "gif"] }
 env_logger = { workspace = true }
 serde = { workspace = true }
 bincode = { workspace = true }

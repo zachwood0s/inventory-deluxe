@@ -20,6 +20,7 @@ pub struct Board {
     show_grid: bool,
     width: u32,
     height: u32,
+    new_url: String,
 }
 
 impl Default for Board {
@@ -31,6 +32,7 @@ impl Default for Board {
             show_grid: false,
             width: 0,
             height: 0,
+            new_url: String::new(),
         }
     }
 }
@@ -104,11 +106,25 @@ impl Board {
                     .prefix("h: ")
                     .range(1..=10)
                     .ui(ui);
+
+                //ui.horizontal(|ui| {
+                //    ui.label("url: ");
+                //    ui.text_edit_singleline(&mut self.new_url);
+                //});
+
                 if ui.button("Add").clicked() {
                     info!("{} {}", from_screen * self.mouse_pos, self.mouse_pos);
+
+                    let image_url = if self.new_url.is_empty() {
+                        None
+                    } else {
+                        Some(self.new_url.clone())
+                    };
+
                     commands.add(board::commands::AddPiece(
                         from_screen * self.mouse_pos,
                         Vec2::new(self.width as f32, self.height as f32),
+                        image_url,
                     ));
                 }
             });
@@ -126,7 +142,7 @@ impl Board {
             .board
             .players
             .values()
-            .map(|player| player.draw_shape(to_screen));
+            .map(|player| player.draw_shape(ui, to_screen));
 
         painter.extend(shapes);
 

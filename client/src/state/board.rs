@@ -1,23 +1,34 @@
-use egui::{ahash::HashMap, Rounding};
+use egui::{ahash::HashMap, Image, Rounding, TextureHandle};
 use uuid::Uuid;
 
 use crate::prelude::*;
 
 pub struct PlayerPiece {
     pub rect: Rect,
-    pub image: Option<TextureId>,
+    pub image_url: Option<String>,
     pub color: Option<Color32>,
     pub dragged: bool,
     pub selected: bool,
 }
 
 impl PlayerPiece {
-    pub fn draw_shape(&self, to_screen: RectTransform) -> egui::Shape {
+    pub fn draw_shape(&self, ui: &mut egui::Ui, to_screen: RectTransform) -> egui::Shape {
         let transformed = to_screen.transform_rect(self.rect);
         if self.dragged {
             egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::GREEN)
         } else if self.selected {
             egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::RED)
+        } else if let Some(url) = &self.image_url {
+            egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::DARK_GRAY)
+            //match texture {
+            //    Ok(egui::load::TexturePoll::Ready { texture }) => egui::Shape::image(
+            //        texture.id,
+            //        transformed,
+            //        Rect::from_min_size(Pos2::ZERO, Vec2::new(1.0, 1.0)),
+            //        Color32::DEBUG_COLOR,
+            //    ),
+            //    _ => egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::DARK_GRAY),
+            //}
         } else {
             egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::WHITE)
         }
@@ -56,7 +67,7 @@ impl BoardState {
                     *uuid,
                     PlayerPiece {
                         rect: Rect::from_center_size(player.position, player.size),
-                        image: None,
+                        image_url: player.image_url.clone(),
                         color: None,
                         dragged: false,
                         selected: false,
@@ -170,13 +181,15 @@ pub mod commands {
         }
     }
 
-    pub struct AddPiece(pub Pos2, pub Vec2);
+    pub struct AddPiece(pub Pos2, pub Vec2, pub Option<String>);
     impl Command for AddPiece {
         fn execute(self: Box<Self>, _state: &mut DndState, tx: &EventSender<Signal>) {
-            let center = self.0;
+            let AddPiece(pos, size, image) = *self;
+
+            let center = pos;
             let center = (center / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
             let uuid = Uuid::new_v4();
-            let size = self.1 * Board::GRID_SIZE;
+            let size = size * Board::GRID_SIZE;
 
             tx.send(
                 DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(
@@ -184,7 +197,7 @@ pub mod commands {
                     common::DndPlayerPiece {
                         position: center,
                         size,
-                        image_url: None,
+                        image_url: image,
                         color: None,
                     },
                 ))

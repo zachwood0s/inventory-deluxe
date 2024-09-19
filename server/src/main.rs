@@ -112,6 +112,8 @@ impl DndServer {
                             }
                             Err(e) => error!("Failed to get item list for {}: {e:?}", user.name),
                         }
+
+                        self.send_initial_board_data(endpoint);
                     }
                     DndMessage::UpdateItemCount(user, item_id, new_count) => {
                         self.update_item_count(user, item_id, new_count)
@@ -301,6 +303,15 @@ impl DndServer {
         }
 
         self.broadcast_board_message(from, msg);
+    }
+
+    fn send_initial_board_data(&self, endpoint: Endpoint) {
+        for (uuid, player) in self.board_data.players.iter() {
+            let message =
+                DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(*uuid, player.clone()));
+            let output_data = bincode::serialize(&message).unwrap();
+            self.handler.network().send(endpoint, &output_data);
+        }
     }
 
     fn broadcast_board_message(&self, ignore_enpoint: Endpoint, msg: BoardMessage) {
