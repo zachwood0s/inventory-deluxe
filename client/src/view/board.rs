@@ -44,7 +44,7 @@ impl Board {
         state: &DndState,
         commands: &mut CommandQueue,
     ) -> egui::Response {
-        let (mut response, painter) = ui.allocate_painter(
+        let (response, painter) = ui.allocate_painter(
             ui.available_size_before_wrap(),
             egui::Sense::click_and_drag(),
         );
@@ -88,7 +88,9 @@ impl Board {
             let screen_origin = to_screen * self.grid_origin;
             self.grid_origin = from_screen * (screen_origin - response.drag_delta());
         } else if ui.input(|input| input.key_pressed(egui::Key::Delete)) {
-            if let Some(selected) = state.board.selected_idx {}
+            if let Some(selected) = state.board.selected_idx {
+                commands.add(board::commands::DeletePiece(selected));
+            }
         }
 
         response.context_menu(|ui| {

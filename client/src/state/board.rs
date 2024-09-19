@@ -159,4 +159,11 @@ pub mod commands {
             })
         }
     }
+
+    pub struct DeletePiece(pub usize);
+    impl Command for DeletePiece {
+        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+            state.board.players.remove(self.0);
+        }
+    }
 }
