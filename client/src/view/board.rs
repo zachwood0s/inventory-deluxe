@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use egui::{epaint::PathStroke, Color32, DragValue, Frame, Painter, Rect, Shape, Widget};
+use egui::{epaint::PathStroke, Color32, DragValue, Frame, Image, Painter, Rect, Shape, Widget};
 use emath::RectTransform;
 use log::info;
 
@@ -107,10 +107,10 @@ impl Board {
                     .range(1..=10)
                     .ui(ui);
 
-                //ui.horizontal(|ui| {
-                //    ui.label("url: ");
-                //    ui.text_edit_singleline(&mut self.new_url);
-                //});
+                ui.horizontal(|ui| {
+                    ui.label("url: ");
+                    ui.text_edit_singleline(&mut self.new_url);
+                });
 
                 if ui.button("Add").clicked() {
                     info!("{} {}", from_screen * self.mouse_pos, self.mouse_pos);
@@ -138,13 +138,9 @@ impl Board {
             self.draw_grid(dims, &painter, &to_screen);
         }
 
-        let shapes = state
-            .board
-            .players
-            .values()
-            .map(|player| player.draw_shape(ui, to_screen));
-
-        painter.extend(shapes);
+        for player in state.board.players.values() {
+            player.draw_shape(ui, &painter, to_screen);
+        }
 
         response
     }
@@ -184,7 +180,7 @@ impl Board {
         const ZOOM_FACTOR: f32 = 0.01;
         const MAX_ZOOM: f32 = 10.0;
         const MIN_ZOOM: f32 = 0.5;
-        self.zoom += ui.input(|i| i.smooth_scroll_delta.y) * ZOOM_FACTOR;
+        self.zoom -= ui.input(|i| i.smooth_scroll_delta.y) * ZOOM_FACTOR;
         self.zoom = self.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
     }
 }

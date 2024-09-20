@@ -315,7 +315,6 @@ impl DndServer {
     }
 
     fn broadcast_board_message(&self, ignore_enpoint: Endpoint, msg: BoardMessage) {
-        info!("Broadcasting board message!");
         let message = DndMessage::BoardMessage(msg);
         let output_data = bincode::serialize(&message).unwrap();
         for (_name, user) in self.users.iter() {

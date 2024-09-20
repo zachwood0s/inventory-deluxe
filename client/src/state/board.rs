@@ -1,4 +1,4 @@
-use egui::{ahash::HashMap, Image, Rounding, TextureHandle};
+use egui::{ahash::HashMap, Image, Painter, Rounding, TextureHandle};
 use uuid::Uuid;
 
 use crate::prelude::*;
@@ -12,14 +12,24 @@ pub struct PlayerPiece {
 }
 
 impl PlayerPiece {
-    pub fn draw_shape(&self, ui: &mut egui::Ui, to_screen: RectTransform) -> egui::Shape {
+    pub fn draw_shape(&self, ui: &mut egui::Ui, painter: &Painter, to_screen: RectTransform) {
         let transformed = to_screen.transform_rect(self.rect);
+
+        if let Some(url) = &self.image_url {
+            if self.dragged {
+                Image::new(url)
+                    .tint(Color32::from_white_alpha(0.5))
+                    .paint_at(ui, transformed);
+            }
+        }
         if self.dragged {
-            egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::GREEN)
+            painter.rect_filled(transformed, Rounding::ZERO, Color32::GREEN);
         } else if self.selected {
-            egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::RED)
+            painter.rect_filled(transformed, Rounding::ZERO, Color32::RED);
         } else if let Some(url) = &self.image_url {
-            egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::DARK_GRAY)
+            Image::new(url).paint_at(ui, transformed);
+            //painter.rect_filled(transformed, Rounding::ZERO, Color32::DARK_GRAY);
+
             //match texture {
             //    Ok(egui::load::TexturePoll::Ready { texture }) => egui::Shape::image(
             //        texture.id,
@@ -30,7 +40,7 @@ impl PlayerPiece {
             //    _ => egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::DARK_GRAY),
             //}
         } else {
-            egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::WHITE)
+            painter.rect_filled(transformed, Rounding::ZERO, Color32::WHITE);
         }
     }
 
