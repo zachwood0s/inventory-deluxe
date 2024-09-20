@@ -15,13 +15,6 @@ impl PlayerPiece {
     pub fn draw_shape(&self, ui: &mut egui::Ui, painter: &Painter, to_screen: RectTransform) {
         let transformed = to_screen.transform_rect(self.rect);
 
-        if let Some(url) = &self.image_url {
-            if self.dragged {
-                Image::new(url)
-                    .tint(Color32::from_white_alpha(0.5))
-                    .paint_at(ui, transformed);
-            }
-        }
         if self.dragged {
             painter.rect_filled(transformed, Rounding::ZERO, Color32::GREEN);
         } else if self.selected {
