@@ -22,6 +22,7 @@ pub struct Item {
     pub name: String,
     pub description: String,
     pub flavor_text: String,
+    pub quest_item: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]

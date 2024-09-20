@@ -24,6 +24,10 @@ impl StatWidget {
             value,
         }
     }
+
+    fn mod_score(&self) -> i16 {
+        (self.value / 2) - 5
+    }
 }
 
 impl egui::Widget for StatWidget {
@@ -40,8 +44,10 @@ impl egui::Widget for StatWidget {
                     .default_size([40.0, 40.0])
                     .show(ui, |ui| {
                         ui.vertical_centered_justified(|ui| {
-                            ui.label(self.name);
-                            ui.heading(self.value.to_string());
+                            ui.label(&self.name);
+                            let prefix = if self.mod_score() > 0 { "+" } else { "" };
+                            ui.heading(format!("{}{}", prefix, self.mod_score()));
+                            ui.small(self.value.to_string());
                         });
                     });
             })

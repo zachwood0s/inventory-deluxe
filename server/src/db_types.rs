@@ -6,6 +6,7 @@ pub struct DBItem {
     name: String,
     description: String,
     flavor_text: String,
+    quest_item: bool,
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -23,6 +24,7 @@ impl Into<common::Item> for DBItemResponse {
             name: self.items.name,
             description: self.items.description,
             flavor_text: self.items.flavor_text,
+            quest_item: self.items.quest_item,
         }
     }
 }

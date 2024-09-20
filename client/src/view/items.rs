@@ -47,7 +47,14 @@ impl<'a, 'b, 'c> Widget for ItemWidget<'a, 'b, 'c> {
         collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, false)
             .show_header(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(&self.item.name));
+                    let mut title = RichText::new(&self.item.name);
+
+                    if self.item.quest_item {
+                        title = title.color(Color32::YELLOW);
+                    }
+
+                    ui.label(title);
+
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let button = ui.button("Use");
                         if button.clicked() {
@@ -83,11 +90,12 @@ impl<'a, 'b, 'c> Widget for ItemWidget<'a, 'b, 'c> {
                 })
             })
             .body(|ui| {
-                ui.label(&self.item.description);
+                egui_demo_lib::easy_mark::easy_mark(ui, &self.item.description);
 
-                let flavor = RichText::new(format!("\"{}\"", &self.item.flavor_text)).italics();
-
-                ui.label(flavor);
+                egui_demo_lib::easy_mark::easy_mark(
+                    ui,
+                    &format!("/\"{}\"/", &self.item.flavor_text),
+                );
             })
             .0
     }
