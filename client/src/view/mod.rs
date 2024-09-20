@@ -2,6 +2,7 @@ mod board;
 mod character;
 mod chat;
 mod items;
+mod settings;
 
 use std::sync::mpsc::Receiver;
 
@@ -17,6 +18,8 @@ use crate::{
     listener::{CommandQueue, Signal},
     state::DndState,
 };
+
+use self::settings::Settings;
 
 pub trait DndTabImpl {
     fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, commands: &mut CommandQueue);
@@ -83,6 +86,11 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         if ui.button("Items").clicked() {
             self.added_nodes
                 .push(DndTab::from_tab(Items::default(), surface, node))
+        }
+
+        if ui.button("Settings").clicked() {
+            self.added_nodes
+                .push(DndTab::from_tab(Settings::default(), surface, node))
         }
     }
 }

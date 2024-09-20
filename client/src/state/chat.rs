@@ -29,14 +29,11 @@ impl ClientLogMessage {
             LogMessage::UseItem(item, count) => {
                 let style = Style::default();
                 let mut layout_job = LayoutJob::default();
-                RichText::new(format!("Used {} ", count)).append_to(
-                    &mut layout_job,
-                    &style,
-                    FontSelection::Default,
-                    Align::LEFT,
-                );
+                RichText::new(format!("Used {} ", count))
+                    .italics()
+                    .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
-                RichText::new(format!("\"{}\"", item))
+                RichText::new(format!("{}", item))
                     .color(Color32::LIGHT_GREEN)
                     .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 

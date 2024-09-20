@@ -55,7 +55,7 @@ impl Board {
             self.mouse_pos = pos;
         }
 
-        let dims = response.rect.square_proportions() * self.zoom.sqrt();
+        let dims = response.rect.square_proportions() * self.zoom;
         let to_screen = emath::RectTransform::from_to(
             Rect::from_center_size(self.grid_origin, dims),
             response.rect,
@@ -180,7 +180,7 @@ impl Board {
         const ZOOM_FACTOR: f32 = 0.01;
         const MAX_ZOOM: f32 = 10.0;
         const MIN_ZOOM: f32 = 0.5;
-        self.zoom -= ui.input(|i| i.smooth_scroll_delta.y) * ZOOM_FACTOR;
+        self.zoom *= (ui.input(|i| i.smooth_scroll_delta.y) * ZOOM_FACTOR) + 1.0;
         self.zoom = self.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
     }
 }
