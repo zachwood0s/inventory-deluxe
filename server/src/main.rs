@@ -119,7 +119,7 @@ impl DndServer {
                                 let encoded = bincode::serialize(&msg).unwrap();
                                 self.handler.network().send(endpoint, &encoded);
                             }
-                            Err(e) => error!("Failed to get item list for {}: {e:?}", user.name),
+                            Err(e) => error!("Failed to get character stats for {}: {e:?}", user.name),
                         }
 
                         self.send_initial_board_data(endpoint);
@@ -213,7 +213,10 @@ impl DndServer {
             resp.text().await
         })?;
 
-        serde_json::from_str(&res).map_err(|e| e.into())
+        info!("{}", res);
+        let abilities: Vec<DBAbilityResponse> = serde_json::from_str(&res)?;
+
+        Ok(abilities.into_iter().map(|x| x.abilities).collect())
     }
 
     fn get_item_list(&self, user: &User) -> Result<Vec<Item>, Box<dyn Error>> {

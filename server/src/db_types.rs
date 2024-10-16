@@ -1,4 +1,4 @@
-use common::Item;
+use common::{Ability, Item};
 
 #[derive(serde::Deserialize, Clone)]
 pub struct DBItem {
@@ -27,4 +27,9 @@ impl Into<common::Item> for DBItemResponse {
             quest_item: self.items.quest_item,
         }
     }
+}
+
+#[derive(serde::Deserialize, Clone)]
+pub struct DBAbilityResponse {
+    pub abilities: Ability,
 }

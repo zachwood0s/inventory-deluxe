@@ -3,6 +3,7 @@ mod character;
 mod chat;
 mod items;
 mod settings;
+mod abilities;
 
 use std::sync::mpsc::Receiver;
 
@@ -13,6 +14,7 @@ use common::message::DndMessage;
 use egui_dock::{NodeIndex, SurfaceIndex};
 pub use items::*;
 use message_io::events::EventSender;
+pub use abilities::*;
 
 use crate::{
     listener::{CommandQueue, Signal},
@@ -82,6 +84,10 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         if ui.button("Character").clicked() {
             self.added_nodes
                 .push(DndTab::from_tab(Character::default(), surface, node))
+        }
+        if ui.button("Abilities").clicked() {
+            self.added_nodes
+                .push(DndTab::from_tab(Abilities::default(), surface, node))
         }
         if ui.button("Items").clicked() {
             self.added_nodes

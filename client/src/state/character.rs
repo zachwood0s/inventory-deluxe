@@ -1,9 +1,10 @@
-use common::{message::DndMessage, Item};
+use common::{message::DndMessage, Ability, Item};
 
 #[derive(Default)]
 pub struct CharacterState {
     pub character: common::Character,
     pub items: Vec<Item>,
+    pub abilities: Vec<Ability>,
 }
 
 impl CharacterState {
@@ -15,6 +16,9 @@ impl CharacterState {
             }
             DndMessage::CharacterData(character) => {
                 self.character = character.clone();
+            }
+            DndMessage::AbilityList(abilities) => {
+                self.abilities = abilities.clone();
             }
             _ => {}
         }
