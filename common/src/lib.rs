@@ -25,6 +25,13 @@ pub struct Item {
     pub quest_item: bool,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct Ability {
+    pub name: String,
+    pub description: String,
+    pub ability_type: String,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
 pub struct Character {
     pub name: String,

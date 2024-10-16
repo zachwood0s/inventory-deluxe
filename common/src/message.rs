@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use emath::Pos2;
 use uuid::Uuid;
 
-use crate::{Character, DndPlayerPiece, Item, User};
+use crate::{Ability, Character, DndPlayerPiece, Item, User};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum LogMessage {
@@ -41,4 +41,5 @@ pub enum DndMessage {
     UserNotificationRemoved(String),
     ItemList(Vec<Item>),
     CharacterData(Character),
+    AbilityList(Vec<Ability>),
 }

@@ -13,7 +13,7 @@ use message_io::{
 
 use common::{
     message::{BoardMessage, DndMessage, LogMessage},
-    Character, DndPlayerPiece, Item, User,
+    Ability, Character, DndPlayerPiece, Item, User,
 };
 use postgrest::Postgrest;
 
@@ -104,6 +104,15 @@ impl DndServer {
                             Err(e) => error!("Failed to get item list for {}: {e:?}", user.name),
                         }
 
+                        match self.get_ability_list(&user) {
+                            Ok(list) => {
+                                let msg = DndMessage::AbilityList(list);
+                                let encoded = bincode::serialize(&msg).unwrap();
+                                self.handler.network().send(endpoint, &encoded);
+                            }
+                            Err(e) => error!("Failed to get ability list for {}: {e:?}", user.name),
+                        }
+
                         match self.get_character_stats(&user) {
                             Ok(stats) => {
                                 let msg = DndMessage::CharacterData(stats);
@@ -188,6 +197,23 @@ impl DndServer {
         } else {
             error!("Cannot unregister a user '{}' who doesn't exist??", name);
         }
+    }
+
+    fn get_ability_list(&self, user: &User) -> Result<Vec<Ability>, Box<dyn Error>> {
+        info!("Retrieving ability list for {}", user.name);
+        let res = futures::executor::block_on(async {
+            let resp = self
+                .db
+                .from("player_abilities")
+                .select("abilities(*)")
+                .eq("player", user.name.clone())
+                .execute()
+                .await
+                .unwrap();
+            resp.text().await
+        })?;
+
+        serde_json::from_str(&res).map_err(|e| e.into())
     }
 
     fn get_item_list(&self, user: &User) -> Result<Vec<Item>, Box<dyn Error>> {
