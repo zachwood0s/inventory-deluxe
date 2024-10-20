@@ -1,18 +1,36 @@
 use core::f32;
-use std::hash::Hash;
+use std::{collections::HashMap, hash::Hash};
 
-use egui::{collapsing_header, epaint, vec2, NumExt, RadioButton, Resize, Sense, Vec2, Widget};
+use common::Ability;
+use egui::{
+    collapsing_header, epaint, vec2, Color32, DragValue, NumExt, RadioButton, Resize, Sense,
+    TextBuffer, Vec2, Widget,
+};
+use itertools::Itertools;
 
-use crate::state::abilities::commands::SetAbilityCount;
+use crate::{listener::CommandQueue, state::abilities::commands::SetAbilityCount};
 
 use super::DndTabImpl;
 
 #[derive(Default)]
 pub struct Abilities;
 
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
 enum IndicatorShape {
     Circle,
-    Square
+    Square,
+}
+
+impl<'a, T> From<T> for IndicatorShape
+where
+    T: Into<&'a str>,
+{
+    fn from(value: T) -> Self {
+        match value.into() {
+            "PowerSlot" => IndicatorShape::Circle,
+            _ => IndicatorShape::Square,
+        }
+    }
 }
 
 struct Indicator {
@@ -21,131 +39,200 @@ struct Indicator {
 }
 
 impl Widget for Indicator {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {        
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let spacing = &ui.spacing();
         let icon_width = spacing.icon_width;
-        let icon_spacing = spacing.icon_spacing;
 
         let mut desired_size = egui::vec2(icon_width, 0.0);
 
         desired_size = desired_size.at_least(Vec2::splat(spacing.interact_size.y));
         desired_size.y = desired_size.y.max(icon_width);
-        let (rect, response) = ui.allocate_exact_size(desired_size, Sense::focusable_noninteractive());
-
+        let (rect, response) =
+            ui.allocate_exact_size(desired_size, Sense::focusable_noninteractive());
 
         if ui.is_rect_visible(rect) {
             let visuals = ui.style().interact(&response);
             let (small_icon_rect, big_icon_rect) = ui.spacing().icon_rectangles(rect);
-            ui.painter().add(epaint::RectShape::new(
-                big_icon_rect.expand(visuals.expansion),
-                visuals.rounding,
-                visuals.bg_fill,
-                visuals.bg_stroke,
-            ));
 
-            if self.filled {
-                ui.painter().add(epaint::RectShape::new(
-                    small_icon_rect.expand(visuals.expansion),
-                    visuals.rounding,
-                    visuals.fg_stroke.color,
-                    visuals.fg_stroke,
-                ));
+            match self.shape {
+                IndicatorShape::Circle => {
+                    ui.painter().add(epaint::CircleShape::stroke(
+                        big_icon_rect.center(),
+                        big_icon_rect.width() / 2.0,
+                        visuals.bg_stroke,
+                    ));
+
+                    if self.filled {
+                        ui.painter().add(epaint::CircleShape::filled(
+                            small_icon_rect.center(),
+                            small_icon_rect.width() / 2.0,
+                            visuals.fg_stroke.color,
+                        ));
+                    }
+                }
+                IndicatorShape::Square => {
+                    ui.painter().add(epaint::RectShape::new(
+                        big_icon_rect.expand(visuals.expansion),
+                        visuals.rounding,
+                        visuals.bg_fill,
+                        visuals.bg_stroke,
+                    ));
+
+                    if self.filled {
+                        ui.painter().add(epaint::RectShape::new(
+                            small_icon_rect.expand(visuals.expansion),
+                            visuals.rounding,
+                            visuals.fg_stroke.color,
+                            visuals.fg_stroke,
+                        ));
+                    }
+                }
             }
-
         };
 
         response
     }
 }
 
-impl DndTabImpl for Abilities {
-    fn ui(&mut self, ui: &mut egui::Ui, state: &crate::prelude::DndState, commands: &mut crate::listener::CommandQueue) {
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+struct AbilityWidget<'a, 'c> {
+    ability_idx: usize,
+    ability: &'a Ability,
+    commands: &'a mut CommandQueue<'c>,
+}
 
-            ui.heading("Passives");
-            for a in state.character.abilities.iter() {
-                ui.group(|ui| {
-                    ui.set_width(ui.available_width());
-                    ui.set_height(60.0);
-                    egui::ScrollArea::vertical().id_source(&a.name).auto_shrink(false).show(ui, |ui| {
-                        ui.label(&a.name);
-                        ui.label(&a.description);
+impl<'a, 'c> Widget for AbilityWidget<'a, 'c> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let ability = self.ability;
+        let id = egui::Id::new(&ability.name);
+        ui.group(|ui| {
+            collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, false)
+                .show_header(ui, |ui| {
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        egui::Frame::none().show(ui, |ui| {
+                            ui.label(egui::RichText::new("Spell").size(10.0));
+                        });
+                        ui.label(egui::RichText::new(&ability.name).size(14.0));
                     });
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        match &*self.ability.resource {
+                            "UseToken" => {
+                                if ui.button("Use").clicked() {
+                                    self.commands.add(SetAbilityCount {
+                                        ability_idx: self.ability_idx,
+                                        count: ability.uses.saturating_sub(1),
+                                        broadcast: true,
+                                    });
+                                }
+                                if ui.button("Reset").clicked() {
+                                    self.commands.add(SetAbilityCount {
+                                        ability_idx: self.ability_idx,
+                                        count: ability.max_count,
+                                        broadcast: true,
+                                    });
+                                }
+
+                                ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
+
+                                let shape = (&*self.ability.resource).into();
+
+                                for ind in 0..ability.max_count {
+                                    Indicator {
+                                        shape,
+                                        filled: ind < ability.uses,
+                                    }
+                                    .ui(ui);
+                                }
+                            }
+                            "Counter" => {
+                                let mut count = ability.uses;
+                                let resp = DragValue::new(&mut count)
+                                    .range(i64::MIN..=ability.max_count)
+                                    .update_while_editing(false)
+                                    .ui(ui);
+
+                                if resp.changed() || resp.drag_stopped() {
+                                    // Only broadcast to the server once we've finished the drag process
+                                    let broadcast = !resp.dragged();
+
+                                    self.commands.add(SetAbilityCount {
+                                        ability_idx: self.ability_idx,
+                                        count,
+                                        broadcast,
+                                    });
+                                }
+                            }
+                            _ => {}
+                        }
+                    });
+                })
+                .body_unindented(|ui| {
+                    egui_demo_lib::easy_mark::easy_mark(ui, &ability.description);
+
+                    if let Some(notes) = &ability.notes {
+                        ui.scope(|ui| {
+                            ui.visuals_mut().override_text_color = Some(Color32::DARK_GRAY);
+                            egui_demo_lib::easy_mark::easy_mark(ui, &format!("\n{}", notes));
+                        });
+                    }
+
+                    if let Some(flavor_text) = &ability.flavor_text {
+                        egui_demo_lib::easy_mark::easy_mark(ui, &format!("\n/{}/", flavor_text));
+                    }
                 });
+        })
+        .response
+    }
+}
+
+impl DndTabImpl for Abilities {
+    fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        state: &crate::prelude::DndState,
+        commands: &mut crate::listener::CommandQueue,
+    ) {
+        fn ability_list(
+            ui: &mut egui::Ui,
+            commands: &mut CommandQueue,
+            abilities: &[Ability],
+            ty: &str,
+        ) {
+            for (ability_idx, ability) in abilities.iter().enumerate() {
+                if ability.ability_type != ty {
+                    continue;
+                }
+                AbilityWidget {
+                    ability_idx,
+                    ability,
+                    commands,
+                }
+                .ui(ui);
             }
-            
-            //ui.set_width(ui.available_width() / 2.0);
-            //ui.set_height(ui.available_height());
+        }
+
+        egui::CentralPanel::default().show_inside(ui, |ui| {
+            ui.heading("Passives");
+            ability_list(ui, commands, &state.character.abilities, "Passive");
+
             ui.add_space(8.0);
 
             egui::Frame::none().show(ui, |ui| {
-                
                 ui.columns(2, |columns| {
                     egui::Frame::none().show(&mut columns[0], |ui| {
                         ui.heading("Actions");
-                        for (ability_idx, ability) in state.character.abilities.iter().enumerate() {
-                            let id = egui::Id::new(&ability.name);
-
-                            ui.group(|ui| {
-                                    collapsing_header::CollapsingState::load_with_default_open(&ui.ctx(), id, false)
-                                        .show_header(ui, |ui| {
-                                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                                egui::Frame::none().show(ui, |ui| {
-                                                    ui.label(egui::RichText::new("Spell").size(10.0));
-                                                });
-                                                ui.label(egui::RichText::new(&ability.name).size(14.0));
-                                            });
-
-                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                                if ui.button("Use").clicked() {
-                                                    commands.add(SetAbilityCount { ability_idx, count: ability.uses.saturating_sub(1) });
-                                                }
-                                                if ui.button("Reset").clicked() {
-                                                    commands.add(SetAbilityCount { ability_idx, count: ability.max_count });
-                                                }
-
-                                                ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
-                                                
-                                                for ind in 0..ability.max_count {
-                                                    Indicator {
-                                                        shape: IndicatorShape::Circle,
-                                                        filled: ind < ability.uses,
-                                                    }.ui(ui);
-                                                }
-                                            });
-                                        })
-                                        .body_unindented(|ui| {
-                                            egui_demo_lib::easy_mark::easy_mark(ui, &ability.description);
-                                        });
-
-                                //ui.allocate_space(vec2(ui.available_width(), 1.0));
-                            });
-
-
-                            // ui.group(|ui| {
-                            //     ui.set_width(ui.available_width());
-                            //     ui.set_height(60.0);
-                            //     egui::ScrollArea::vertical().id_source(&a.description).auto_shrink(false).show(ui, |ui| {
-                            //         ui.label(&a.name);
-                            //         ui.label(&a.description);
-                            //     });
-                            // });
-                        }
+                        ability_list(ui, commands, &state.character.abilities, "Bonus Action");
+                        ability_list(ui, commands, &state.character.abilities, "Action");
+                        ability_list(ui, commands, &state.character.abilities, "Other");
                     });
 
                     egui::Frame::none().show(&mut columns[1], |ui| {
                         ui.heading("Reactions");
-                        for a in state.character.items.iter() {
-                            egui::ScrollArea::vertical().id_source(&a.name).auto_shrink(false).show(ui, |ui| {
-                                ui.label(&a.name);
-                                ui.label(&a.description);
-                            });
-                        };
+                        ability_list(ui, commands, &state.character.abilities, "Reaction");
                     });
                 });
             });
         });
-
     }
 
     fn title(&self) -> String {

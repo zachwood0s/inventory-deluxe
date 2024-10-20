@@ -20,4 +20,5 @@ log = { workspace = true }
 uuid = { workspace = true, features = ["zerocopy", "v4", "bytemuck", "serde"] }
 clap = { version = "4.5.17", features = ["derive"] }
 emath = { workspace = true }
+itertools = { workspace = true }
 egui_demo_lib = "0.28.1"

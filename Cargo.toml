@@ -16,3 +16,4 @@ uuid = { version = "1.10.0", features = [
   "bytemuck",
   "serde",
 ] }
+itertools = "0.13.0"

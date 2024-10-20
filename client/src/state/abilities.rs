@@ -1,15 +1,19 @@
-
 pub mod commands {
     use crate::prelude::*;
 
     pub struct SetAbilityCount {
         pub ability_idx: usize,
         pub count: i64,
+        pub broadcast: bool,
     }
 
     impl SetAbilityCount {
-        pub fn new(ability_idx: usize, count: i64) -> Self {
-            Self { ability_idx, count }
+        pub fn new(ability_idx: usize, count: i64, broadcast: bool) -> Self {
+            Self {
+                ability_idx,
+                count,
+                broadcast,
+            }
         }
     }
 
@@ -27,13 +31,26 @@ pub mod commands {
 
             ability.uses = self.count;
 
-            // Update item count in DB
-            tx.send(DndMessage::UpdateAbilityCount(user.clone(), ability.name.clone(), ability.uses).into());
+            if self.broadcast {
+                // Update item count in DB
+                tx.send(
+                    DndMessage::UpdateAbilityCount(
+                        user.clone(),
+                        ability.name.clone(),
+                        ability.uses,
+                    )
+                    .into(),
+                );
 
-            // Send Log Message
-            tx.send(
-                DndMessage::Log(user, LogMessage::SetAbilityCount(ability.name.clone(), self.count)).into(),
-            );
+                // Send Log Message
+                tx.send(
+                    DndMessage::Log(
+                        user,
+                        LogMessage::SetAbilityCount(ability.name.clone(), self.count),
+                    )
+                    .into(),
+                );
+            }
         }
     }
 
