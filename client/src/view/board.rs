@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, state::board::commands::PieceParams};
 use egui::{epaint::PathStroke, Color32, DragValue, Frame, Image, Painter, Rect, Shape, Widget};
 use emath::RectTransform;
 use log::info;
@@ -17,10 +17,13 @@ pub struct Board {
     mouse_pos: Pos2,
     grid_origin: Pos2,
     zoom: f32,
-    show_grid: bool,
     width: u32,
     height: u32,
     new_url: String,
+
+    show_grid: bool,
+    hidden_to_others: bool,
+    background: bool,
 }
 
 impl Default for Board {
@@ -29,10 +32,13 @@ impl Default for Board {
             mouse_pos: Pos2::ZERO,
             grid_origin: Pos2::ZERO,
             zoom: 1.0,
-            show_grid: false,
             width: 0,
             height: 0,
             new_url: String::new(),
+
+            show_grid: false,
+            hidden_to_others: false,
+            background: false,
         }
     }
 }
@@ -86,6 +92,13 @@ impl Board {
                 .and_then(|x| state.board.find_selected_player_id(from_screen * x))
                 .copied();
 
+            if let Some(selected) = selected_idx {
+                self.new_url = state.board.players[&selected]
+                    .image_url
+                    .clone()
+                    .unwrap_or_default()
+            }
+
             commands.add(board::commands::Select(selected_idx));
         } else if response.dragged_by(egui::PointerButton::Middle) {
             let screen_origin = to_screen * self.grid_origin;
@@ -112,8 +125,36 @@ impl Board {
                     ui.text_edit_singleline(&mut self.new_url);
                 });
 
-                if ui.button("Add").clicked() {
-                    info!("{} {}", from_screen * self.mouse_pos, self.mouse_pos);
+                ui.checkbox(&mut self.hidden_to_others, "Hide from others");
+                ui.checkbox(&mut self.background, "Background");
+
+                if let Some(selected) = state.board.selected_id {
+                    if ui.button("Update").clicked() {
+                        info!(
+                            "Updating {} {}",
+                            from_screen * self.mouse_pos,
+                            self.mouse_pos
+                        );
+
+                        let image_url = if self.new_url.is_empty() {
+                            None
+                        } else {
+                            Some(self.new_url.clone())
+                        };
+
+                        commands.add(board::commands::UpdatePiece {
+                            piece_id: selected,
+                            params: PieceParams {
+                                pos: from_screen * self.mouse_pos,
+                                size: Vec2::new(self.width as f32, self.height as f32),
+                                url: image_url,
+                                hidden_to_others: self.hidden_to_others,
+                                background: self.background,
+                            },
+                        });
+                    }
+                } else if ui.button("Add").clicked() {
+                    info!("Adding {} {}", from_screen * self.mouse_pos, self.mouse_pos);
 
                     let image_url = if self.new_url.is_empty() {
                         None
@@ -121,11 +162,15 @@ impl Board {
                         Some(self.new_url.clone())
                     };
 
-                    commands.add(board::commands::AddPiece(
-                        from_screen * self.mouse_pos,
-                        Vec2::new(self.width as f32, self.height as f32),
-                        image_url,
-                    ));
+                    commands.add(board::commands::AddPiece {
+                        params: PieceParams {
+                            pos: from_screen * self.mouse_pos,
+                            size: Vec2::new(self.width as f32, self.height as f32),
+                            url: image_url,
+                            hidden_to_others: self.hidden_to_others,
+                            background: self.background,
+                        },
+                    });
                 }
             });
 
@@ -186,21 +231,6 @@ impl Board {
 }
 
 impl DndTabImpl for Board {
-    // TODO: Problem: how to get the server updates into the Tab here. Typically I've been wanting
-    // to keep the state modifications that need to be synced out of the tab itself but because I
-    // want responsive grid I think its best to put the updates in the tab itself. I'll need to
-    // route them from the rx portion into the tab somehow. I could also have a shadow copy of the
-    // state where I route commands to but not sure that fixes my problem. If I store in the tab,
-    // if I close and need to reopen I'll have to ask the server for the current board data (not
-    // hard). Maybe I'm dumb and the commands would actually fix the issue (more I  think about it
-    // the more I think that might be the case. Just need careful handling of the repaint logic)
-    //
-    // TODO: Most likely when doing updates I'll just want to pass the updates, not the full board
-    // state. That way we won't have people overriding eachothers changes (or at least will
-    // mimimize that).
-    //
-    // TODO: Need to be able to add/remove things to the board (and obviously tell the server something
-    // has been added/removed)
     fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, commands: &mut CommandQueue) {
         Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui, state, commands));
     }

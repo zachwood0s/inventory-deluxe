@@ -33,9 +33,12 @@ impl ClientLogMessage {
                     .italics()
                     .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
-                RichText::new(format!("{}", item))
-                    .color(Color32::LIGHT_GREEN)
-                    .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
+                RichText::new(item).color(Color32::LIGHT_GREEN).append_to(
+                    &mut layout_job,
+                    &style,
+                    FontSelection::Default,
+                    Align::LEFT,
+                );
 
                 ui.label(layout_job);
             }
@@ -45,9 +48,29 @@ impl ClientLogMessage {
             LogMessage::Disconnected(discon_user) => {
                 ui.colored_label(Color32::DARK_GRAY, format!("{} disconnected", discon_user));
             }
-            LogMessage::SetAbilityCount(name, _) => {
-                ui.label("Abilty");
-            },
+            LogMessage::SetAbilityCount(ability, count) => {
+                let style = Style::default();
+                let mut layout_job = LayoutJob::default();
+                RichText::new("Used  ").italics().append_to(
+                    &mut layout_job,
+                    &style,
+                    FontSelection::Default,
+                    Align::LEFT,
+                );
+
+                RichText::new(ability).color(Color32::LIGHT_RED).append_to(
+                    &mut layout_job,
+                    &style,
+                    FontSelection::Default,
+                    Align::LEFT,
+                );
+
+                RichText::new(format!(", they have {} uses left", count))
+                    .italics()
+                    .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
+
+                ui.label(layout_job);
+            }
         };
     }
 }

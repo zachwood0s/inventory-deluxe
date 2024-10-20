@@ -77,6 +77,12 @@ impl BoardState {
                     },
                 );
             }
+            BoardMessage::UpdatePlayerPiece(uuid, new_player) => {
+                if let Some(player) = self.players.get_mut(uuid) {
+                    player.rect = Rect::from_center_size(new_player.position, new_player.size);
+                    player.image_url = player.image_url.clone();
+                }
+            }
             BoardMessage::UpdatePlayerLocation(uuid, new_pos) => {
                 if let Some(player) = self.players.get_mut(uuid) {
                     player.rect.set_center(*new_pos)
@@ -184,10 +190,29 @@ pub mod commands {
         }
     }
 
-    pub struct AddPiece(pub Pos2, pub Vec2, pub Option<String>);
+    pub struct PieceParams {
+        pub pos: Pos2,
+        pub size: Vec2,
+        pub url: Option<String>,
+        pub hidden_to_others: bool,
+        pub background: bool,
+    }
+
+    pub struct AddPiece {
+        pub params: PieceParams,
+    }
     impl Command for AddPiece {
         fn execute(self: Box<Self>, _state: &mut DndState, tx: &EventSender<Signal>) {
-            let AddPiece(pos, size, image) = *self;
+            let AddPiece {
+                params:
+                    PieceParams {
+                        pos,
+                        size,
+                        url,
+                        hidden_to_others,
+                        background,
+                    },
+            } = *self;
 
             let center = pos;
             let center = (center / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
@@ -200,7 +225,45 @@ pub mod commands {
                     common::DndPlayerPiece {
                         position: center,
                         size,
-                        image_url: image,
+                        image_url: url,
+                        color: None,
+                    },
+                ))
+                .into(),
+            )
+        }
+    }
+
+    pub struct UpdatePiece {
+        pub piece_id: Uuid,
+        pub params: PieceParams,
+    }
+
+    impl Command for UpdatePiece {
+        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+            let UpdatePiece {
+                piece_id,
+                params:
+                    PieceParams {
+                        pos,
+                        size,
+                        url,
+                        hidden_to_others,
+                        background,
+                    },
+            } = *self;
+
+            let center = pos;
+            let center = (center / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
+            let size = size * Board::GRID_SIZE;
+
+            tx.send(
+                DndMessage::BoardMessage(BoardMessage::UpdatePlayerPiece(
+                    piece_id,
+                    common::DndPlayerPiece {
+                        position: center,
+                        size,
+                        image_url: url,
                         color: None,
                     },
                 ))

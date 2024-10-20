@@ -7,6 +7,7 @@ use egui::{
     TextBuffer, Vec2, Widget,
 };
 use itertools::Itertools;
+use log::info;
 
 use crate::{listener::CommandQueue, state::abilities::commands::SetAbilityCount};
 
@@ -160,6 +161,11 @@ impl<'a, 'c> Widget for AbilityWidget<'a, 'c> {
                                         count,
                                         broadcast,
                                     });
+                                }
+                            }
+                            "PowerSlot" => {
+                                if ui.button("Use").clicked() {
+                                    info!("POWER SLOT USE");
                                 }
                             }
                             _ => {}

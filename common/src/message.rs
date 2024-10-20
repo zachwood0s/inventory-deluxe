@@ -17,6 +17,7 @@ pub enum LogMessage {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum BoardMessage {
     AddPlayerPiece(Uuid, DndPlayerPiece),
+    UpdatePlayerPiece(Uuid, DndPlayerPiece),
     UpdatePlayerLocation(Uuid, Pos2),
     DeletePlayerPiece(Uuid),
 }
