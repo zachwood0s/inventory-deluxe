@@ -3,6 +3,7 @@ use common::{message::DndMessage, User};
 pub mod board;
 pub mod character;
 pub mod chat;
+pub mod abilities;
 
 #[derive(Default)]
 pub struct DndState {

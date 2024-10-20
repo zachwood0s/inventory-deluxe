@@ -3,6 +3,8 @@ use std::hash::Hash;
 
 use egui::{collapsing_header, epaint, vec2, NumExt, RadioButton, Resize, Sense, Vec2, Widget};
 
+use crate::state::abilities::commands::SetAbilityCount;
+
 use super::DndTabImpl;
 
 #[derive(Default)]
@@ -81,8 +83,8 @@ impl DndTabImpl for Abilities {
                 ui.columns(2, |columns| {
                     egui::Frame::none().show(&mut columns[0], |ui| {
                         ui.heading("Actions");
-                        for a in state.character.abilities.iter() {
-                            let id = egui::Id::new(&a.name);
+                        for (ability_idx, ability) in state.character.abilities.iter().enumerate() {
+                            let id = egui::Id::new(&ability.name);
 
                             ui.group(|ui| {
                                     collapsing_header::CollapsingState::load_with_default_open(&ui.ctx(), id, false)
@@ -91,29 +93,29 @@ impl DndTabImpl for Abilities {
                                                 egui::Frame::none().show(ui, |ui| {
                                                     ui.label(egui::RichText::new("Spell").size(10.0));
                                                 });
-                                                ui.label(egui::RichText::new(&a.name).size(14.0));
+                                                ui.label(egui::RichText::new(&ability.name).size(14.0));
                                             });
 
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                 if ui.button("Use").clicked() {
-
+                                                    commands.add(SetAbilityCount { ability_idx, count: ability.uses.saturating_sub(1) });
                                                 }
                                                 if ui.button("Reset").clicked() {
-
+                                                    commands.add(SetAbilityCount { ability_idx, count: ability.max_count });
                                                 }
 
                                                 ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
                                                 
-                                                for ind in 0..a.max_count {
+                                                for ind in 0..ability.max_count {
                                                     Indicator {
                                                         shape: IndicatorShape::Circle,
-                                                        filled: ind <= 2,
+                                                        filled: ind < ability.uses,
                                                     }.ui(ui);
                                                 }
                                             });
                                         })
                                         .body_unindented(|ui| {
-                                            egui_demo_lib::easy_mark::easy_mark(ui, &a.description);
+                                            egui_demo_lib::easy_mark::easy_mark(ui, &ability.description);
                                         });
 
                                 //ui.allocate_space(vec2(ui.available_width(), 1.0));

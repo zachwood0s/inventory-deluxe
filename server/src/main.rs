@@ -127,6 +127,9 @@ impl DndServer {
                     DndMessage::UpdateItemCount(user, item_id, new_count) => {
                         self.update_item_count(user, item_id, new_count)
                     }
+                    DndMessage::UpdateAbilityCount(user, ability_name, count) => {
+                        self.update_ability_count(user, ability_name, count)
+                    }
                     DndMessage::BoardMessage(msg) => self.handle_board_message(endpoint, msg),
                     _ => {
                         warn!("Unhandled message {message:?}");
@@ -205,7 +208,7 @@ impl DndServer {
             let resp = self
                 .db
                 .from("player_abilities")
-                .select("uses,abilities(*)")
+                .select("abilities(*),uses")
                 .eq("player", user.name.clone())
                 .execute()
                 .await
@@ -281,6 +284,21 @@ impl DndServer {
 
             info!("{}'s item count reached 0, deleting from DB", user.name);
         }
+    }
+    
+    fn update_ability_count(&self, user: User, ability_name: String, new_count: i64) {
+        futures::executor::block_on(async {
+            self.db
+                .from("player_abilities")
+                .eq("player", &user.name)
+                .eq("ability_name", ability_name)
+                .update(format!("{{ \"uses\": {} }}", new_count))
+                .execute()
+                .await
+                .unwrap();
+        });
+
+        info!("{}'s ability uses updated to {}", user.name, new_count);
     }
 
     fn get_character_stats(&self, user: &User) -> Result<Character, Box<dyn Error>> {

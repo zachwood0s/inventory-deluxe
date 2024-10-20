@@ -45,6 +45,9 @@ impl ClientLogMessage {
             LogMessage::Disconnected(discon_user) => {
                 ui.colored_label(Color32::DARK_GRAY, format!("{} disconnected", discon_user));
             }
+            LogMessage::SetAbilityCount(name, _) => {
+                ui.label("Abilty");
+            },
         };
     }
 }

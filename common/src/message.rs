@@ -9,6 +9,7 @@ use crate::{Ability, Character, DndPlayerPiece, Item, User};
 pub enum LogMessage {
     Chat(String),
     UseItem(String, u32),
+    SetAbilityCount(String, i64),
     Joined(String),
     Disconnected(String),
 }
@@ -31,6 +32,7 @@ pub enum DndMessage {
     RetrieveCharacterData(User),
     /// (User, id, new_count)
     UpdateItemCount(User, i64, u32),
+    UpdateAbilityCount(User, String, i64),
 
     // Board
     BoardMessage(BoardMessage),

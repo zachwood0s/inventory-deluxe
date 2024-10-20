@@ -1,3 +1,5 @@
+use std::string;
+
 use common::{Ability, Item};
 
 #[derive(serde::Deserialize, Clone)]
@@ -30,9 +32,21 @@ impl Into<common::Item> for DBItemResponse {
 }
 
 #[derive(serde::Deserialize, Clone)]
+pub struct DBAbility {
+    name: String,
+    description: String,
+    notes: Option<String>,
+    ability_type: String,
+    flavor_text: Option<String>,
+    resource: String,
+    max_count: i64,
+}
+
+
+#[derive(serde::Deserialize, Clone)]
 pub struct DBAbilityResponse {
+    pub abilities: DBAbility,
     pub uses: i64,
-    pub abilities: Ability,
 }
 
 #[allow(clippy::from_over_into)]
