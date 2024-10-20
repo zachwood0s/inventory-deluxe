@@ -205,7 +205,7 @@ impl DndServer {
             let resp = self
                 .db
                 .from("player_abilities")
-                .select("abilities(*)")
+                .select("uses,abilities(*)")
                 .eq("player", user.name.clone())
                 .execute()
                 .await
@@ -216,7 +216,7 @@ impl DndServer {
         info!("{}", res);
         let abilities: Vec<DBAbilityResponse> = serde_json::from_str(&res)?;
 
-        Ok(abilities.into_iter().map(|x| x.abilities).collect())
+        Ok(abilities.into_iter().map(|x| x.into()).collect())
     }
 
     fn get_item_list(&self, user: &User) -> Result<Vec<Item>, Box<dyn Error>> {

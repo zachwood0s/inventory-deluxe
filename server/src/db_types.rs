@@ -31,5 +31,23 @@ impl Into<common::Item> for DBItemResponse {
 
 #[derive(serde::Deserialize, Clone)]
 pub struct DBAbilityResponse {
+    pub uses: i64,
     pub abilities: Ability,
 }
+
+#[allow(clippy::from_over_into)]
+impl Into<common::Ability> for DBAbilityResponse {
+    fn into(self) -> common::Ability {
+        Ability {
+            name: self.abilities.name,
+            description: self.abilities.description,
+            notes: self.abilities.notes,
+            ability_type: self.abilities.ability_type,
+            flavor_text: self.abilities.flavor_text,
+            resource: self.abilities.resource,
+            max_count: self.abilities.max_count,
+            uses: self.uses,
+        }
+    }
+}
+

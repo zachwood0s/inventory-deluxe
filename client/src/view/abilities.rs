@@ -1,12 +1,60 @@
 use core::f32;
 use std::hash::Hash;
 
-use egui::{collapsing_header, vec2, Resize, Vec2};
+use egui::{collapsing_header, epaint, vec2, NumExt, RadioButton, Resize, Sense, Vec2, Widget};
 
 use super::DndTabImpl;
 
 #[derive(Default)]
 pub struct Abilities;
+
+enum IndicatorShape {
+    Circle,
+    Square
+}
+
+struct Indicator {
+    pub shape: IndicatorShape,
+    pub filled: bool,
+}
+
+impl Widget for Indicator {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {        
+        let spacing = &ui.spacing();
+        let icon_width = spacing.icon_width;
+        let icon_spacing = spacing.icon_spacing;
+
+        let mut desired_size = egui::vec2(icon_width, 0.0);
+
+        desired_size = desired_size.at_least(Vec2::splat(spacing.interact_size.y));
+        desired_size.y = desired_size.y.max(icon_width);
+        let (rect, response) = ui.allocate_exact_size(desired_size, Sense::focusable_noninteractive());
+
+
+        if ui.is_rect_visible(rect) {
+            let visuals = ui.style().interact(&response);
+            let (small_icon_rect, big_icon_rect) = ui.spacing().icon_rectangles(rect);
+            ui.painter().add(epaint::RectShape::new(
+                big_icon_rect.expand(visuals.expansion),
+                visuals.rounding,
+                visuals.bg_fill,
+                visuals.bg_stroke,
+            ));
+
+            if self.filled {
+                ui.painter().add(epaint::RectShape::new(
+                    small_icon_rect.expand(visuals.expansion),
+                    visuals.rounding,
+                    visuals.fg_stroke.color,
+                    visuals.fg_stroke,
+                ));
+            }
+
+        };
+
+        response
+    }
+}
 
 impl DndTabImpl for Abilities {
     fn ui(&mut self, ui: &mut egui::Ui, state: &crate::prelude::DndState, commands: &mut crate::listener::CommandQueue) {
@@ -52,6 +100,15 @@ impl DndTabImpl for Abilities {
                                                 }
                                                 if ui.button("Reset").clicked() {
 
+                                                }
+
+                                                ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
+                                                
+                                                for ind in 0..a.max_count {
+                                                    Indicator {
+                                                        shape: IndicatorShape::Circle,
+                                                        filled: ind <= 2,
+                                                    }.ui(ui);
                                                 }
                                             });
                                         })

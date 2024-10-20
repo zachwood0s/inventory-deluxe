@@ -29,7 +29,12 @@ pub struct Item {
 pub struct Ability {
     pub name: String,
     pub description: String,
+    pub notes: Option<String>,
     pub ability_type: String,
+    pub flavor_text: Option<String>,
+    pub resource: String,
+    pub max_count: i64,
+    pub uses: i64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
