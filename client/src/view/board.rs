@@ -1,7 +1,13 @@
-use crate::{prelude::*, state::board::commands::PieceParams};
+use crate::{
+    prelude::*,
+    state::board::commands::{Drag, PieceParams},
+};
+use common::SortingLayer;
 use egui::{epaint::PathStroke, Color32, DragValue, Frame, Image, Painter, Rect, Shape, Widget};
 use emath::RectTransform;
+use itertools::Itertools;
 use log::info;
+use uuid::Uuid;
 
 use crate::{
     listener::CommandQueue,
@@ -11,7 +17,7 @@ use crate::{
     },
 };
 
-use super::DndTabImpl;
+use super::{multi_select::MultiSelect, DndTabImpl};
 
 pub struct Board {
     mouse_pos: Pos2,
@@ -22,8 +28,10 @@ pub struct Board {
     new_url: String,
 
     show_grid: bool,
-    hidden_to_others: bool,
-    background: bool,
+    player_list: Vec<String>,
+    sorting_layer: SortingLayer,
+
+    toasted: bool,
 }
 
 impl Default for Board {
@@ -37,14 +45,40 @@ impl Default for Board {
             new_url: String::new(),
 
             show_grid: false,
-            hidden_to_others: false,
-            background: false,
+            player_list: Vec::default(),
+            sorting_layer: SortingLayer::default(),
+
+            toasted: false,
         }
     }
 }
 
 impl Board {
     pub const GRID_SIZE: f32 = 0.1;
+
+    fn copy_selected_stats(&mut self, state: &DndState, selected: &Uuid) {
+        let selected = &state.board.players[selected];
+        self.new_url = selected.image_url.clone().unwrap_or_default();
+
+        let dims = (selected.rect.size() / Board::GRID_SIZE).round();
+        self.width = dims.x as u32;
+        self.height = dims.y as u32;
+
+        self.sorting_layer = selected.sorting_layer;
+    }
+
+    fn character_selection(&mut self, ui: &mut egui::Ui, state: &DndState) {
+        let mut new_list = Vec::new();
+        for c in state.character_list.iter() {
+            let mut checked = self.player_list.contains(c);
+            ui.checkbox(&mut checked, c);
+
+            if checked {
+                new_list.push(c.clone());
+            }
+        }
+        self.player_list = new_list;
+    }
 
     fn ui_content(
         &mut self,
@@ -84,6 +118,9 @@ impl Board {
                 .and_then(|x| state.board.find_selected_player_id(from_screen * x))
             {
                 commands.add(board::commands::Drag(*idx));
+
+                // Dragging also selects the piece
+                commands.add(board::commands::Select(Some(*idx)));
             }
         } else if response.clicked_by(egui::PointerButton::Primary) {
             // Handle selection of a piece
@@ -92,11 +129,8 @@ impl Board {
                 .and_then(|x| state.board.find_selected_player_id(from_screen * x))
                 .copied();
 
-            if let Some(selected) = selected_idx {
-                self.new_url = state.board.players[&selected]
-                    .image_url
-                    .clone()
-                    .unwrap_or_default()
+            if let Some(selected) = &selected_idx {
+                self.copy_selected_stats(state, selected)
             }
 
             commands.add(board::commands::Select(selected_idx));
@@ -110,13 +144,29 @@ impl Board {
         }
 
         response.context_menu(|ui| {
-            ui.menu_button("Add Piece", |ui| {
+            let menu_text = if state.board.selected_id.is_some() {
+                "Update Piece"
+            } else {
+                "Add Piece"
+            };
+
+            ui.menu_button(menu_text, |ui| {
+                ui.menu_button("Visible By", |ui| {
+                    self.character_selection(ui, state);
+                });
+
                 DragValue::new(&mut self.width)
                     .prefix("w: ")
-                    .range(1..=10)
+                    .range(1..=100)
                     .ui(ui);
+
                 DragValue::new(&mut self.height)
                     .prefix("h: ")
+                    .range(1..=100)
+                    .ui(ui);
+
+                DragValue::new(&mut self.sorting_layer.0)
+                    .prefix("layer: ")
                     .range(1..=10)
                     .ui(ui);
 
@@ -124,9 +174,6 @@ impl Board {
                     ui.label("url: ");
                     ui.text_edit_singleline(&mut self.new_url);
                 });
-
-                ui.checkbox(&mut self.hidden_to_others, "Hide from others");
-                ui.checkbox(&mut self.background, "Background");
 
                 if let Some(selected) = state.board.selected_id {
                     if ui.button("Update").clicked() {
@@ -148,8 +195,8 @@ impl Board {
                                 pos: from_screen * self.mouse_pos,
                                 size: Vec2::new(self.width as f32, self.height as f32),
                                 url: image_url,
-                                hidden_to_others: self.hidden_to_others,
-                                background: self.background,
+                                visible_by: self.player_list.clone(),
+                                sorting_layer: self.sorting_layer,
                             },
                         });
                     }
@@ -167,8 +214,8 @@ impl Board {
                             pos: from_screen * self.mouse_pos,
                             size: Vec2::new(self.width as f32, self.height as f32),
                             url: image_url,
-                            hidden_to_others: self.hidden_to_others,
-                            background: self.background,
+                            visible_by: self.player_list.clone(),
+                            sorting_layer: self.sorting_layer,
                         },
                     });
                 }
@@ -183,7 +230,13 @@ impl Board {
             self.draw_grid(dims, &painter, &to_screen);
         }
 
-        for player in state.board.players.values() {
+        for player in state
+            .board
+            .players
+            .values()
+            .sorted_by_key(|x| x.sorting_layer)
+            .filter(|x| x.visible_by.contains(&state.owned_user().name) || x.visible_by.is_empty())
+        {
             player.draw_shape(ui, &painter, to_screen);
         }
 

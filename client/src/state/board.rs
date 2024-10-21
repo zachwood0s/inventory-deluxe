@@ -1,4 +1,8 @@
-use egui::{ahash::HashMap, Image, Painter, Rounding, TextureHandle};
+use std::cmp;
+
+use common::SortingLayer;
+use egui::{ahash::HashMap, Image, Painter, Rounding, Stroke, TextureHandle};
+use itertools::Itertools;
 use uuid::Uuid;
 
 use crate::prelude::*;
@@ -9,31 +13,34 @@ pub struct PlayerPiece {
     pub color: Option<Color32>,
     pub dragged: bool,
     pub selected: bool,
+    pub sorting_layer: SortingLayer,
+    pub visible_by: Vec<String>,
 }
 
 impl PlayerPiece {
     pub fn draw_shape(&self, ui: &mut egui::Ui, painter: &Painter, to_screen: RectTransform) {
         let transformed = to_screen.transform_rect(self.rect);
 
-        if self.dragged {
-            painter.rect_filled(transformed, Rounding::ZERO, Color32::GREEN);
-        } else if self.selected {
-            painter.rect_filled(transformed, Rounding::ZERO, Color32::RED);
-        } else if let Some(url) = &self.image_url {
-            Image::new(url).paint_at(ui, transformed);
-            //painter.rect_filled(transformed, Rounding::ZERO, Color32::DARK_GRAY);
+        let alpha = if self.dragged { u8::MAX / 10 } else { u8::MAX };
 
-            //match texture {
-            //    Ok(egui::load::TexturePoll::Ready { texture }) => egui::Shape::image(
-            //        texture.id,
-            //        transformed,
-            //        Rect::from_min_size(Pos2::ZERO, Vec2::new(1.0, 1.0)),
-            //        Color32::DEBUG_COLOR,
-            //    ),
-            //    _ => egui::Shape::rect_filled(transformed, Rounding::ZERO, Color32::DARK_GRAY),
-            //}
+        if let Some(url) = &self.image_url {
+            Image::new(url)
+                .tint(Color32::from_white_alpha(alpha))
+                .paint_at(ui, transformed);
         } else {
-            painter.rect_filled(transformed, Rounding::ZERO, Color32::WHITE);
+            painter.rect_filled(
+                transformed,
+                Rounding::ZERO,
+                Color32::from_white_alpha(alpha),
+            );
+        }
+
+        if self.selected {
+            painter.rect_stroke(
+                transformed,
+                Rounding::ZERO,
+                Stroke::new(3.0, Color32::LIGHT_RED),
+            );
         }
     }
 
@@ -74,13 +81,17 @@ impl BoardState {
                         color: None,
                         dragged: false,
                         selected: false,
+                        sorting_layer: player.sorting_layer,
+                        visible_by: player.visible_by.clone(),
                     },
                 );
             }
             BoardMessage::UpdatePlayerPiece(uuid, new_player) => {
                 if let Some(player) = self.players.get_mut(uuid) {
                     player.rect = Rect::from_center_size(new_player.position, new_player.size);
-                    player.image_url = player.image_url.clone();
+                    player.image_url = new_player.image_url.clone();
+                    player.sorting_layer = new_player.sorting_layer;
+                    player.visible_by = new_player.visible_by.clone();
                 }
             }
             BoardMessage::UpdatePlayerLocation(uuid, new_pos) => {
@@ -112,7 +123,11 @@ impl BoardState {
     }
 
     pub fn find_selected_player_id(&self, pointer_pos: Pos2) -> Option<&Uuid> {
-        for (id, player) in self.players.iter() {
+        for (id, player) in self
+            .players
+            .iter()
+            .sorted_by_key(|x| cmp::Reverse(x.1.sorting_layer))
+        {
             if player.rect.contains(pointer_pos) {
                 return Some(id);
             }
@@ -122,6 +137,8 @@ impl BoardState {
 }
 
 pub mod commands {
+    use common::SortingLayer;
+
     use super::*;
     use crate::{prelude::*, view::Board};
 
@@ -194,8 +211,8 @@ pub mod commands {
         pub pos: Pos2,
         pub size: Vec2,
         pub url: Option<String>,
-        pub hidden_to_others: bool,
-        pub background: bool,
+        pub visible_by: Vec<String>,
+        pub sorting_layer: SortingLayer,
     }
 
     pub struct AddPiece {
@@ -209,8 +226,8 @@ pub mod commands {
                         pos,
                         size,
                         url,
-                        hidden_to_others,
-                        background,
+                        visible_by,
+                        sorting_layer,
                     },
             } = *self;
 
@@ -227,6 +244,8 @@ pub mod commands {
                         size,
                         image_url: url,
                         color: None,
+                        sorting_layer,
+                        visible_by,
                     },
                 ))
                 .into(),
@@ -248,8 +267,8 @@ pub mod commands {
                         pos,
                         size,
                         url,
-                        hidden_to_others,
-                        background,
+                        visible_by,
+                        sorting_layer,
                     },
             } = *self;
 
@@ -265,6 +284,8 @@ pub mod commands {
                         size,
                         image_url: url,
                         color: None,
+                        sorting_layer,
+                        visible_by,
                     },
                 ))
                 .into(),

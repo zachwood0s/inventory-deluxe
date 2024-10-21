@@ -51,10 +51,26 @@ pub struct Character {
     pub skills: Vec<String>,
 }
 
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    Clone,
+    Default,
+    Copy,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+)]
+pub struct SortingLayer(pub u32);
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
 pub struct DndPlayerPiece {
     pub position: Pos2,
     pub size: Vec2,
     pub image_url: Option<String>,
     pub color: Option<[u8; 4]>,
+    pub sorting_layer: SortingLayer,
+    pub visible_by: Vec<String>,
 }

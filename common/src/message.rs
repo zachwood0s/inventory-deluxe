@@ -42,6 +42,7 @@ pub enum DndMessage {
 
     // From DndServer
     UserList(Vec<String>),
+    CharacterList(Vec<String>),
     UserNotificationAdded(String),
     UserNotificationRemoved(String),
     ItemList(Vec<Item>),

@@ -1,9 +1,9 @@
 use common::{message::DndMessage, User};
 
+pub mod abilities;
 pub mod board;
 pub mod character;
 pub mod chat;
-pub mod abilities;
 
 #[derive(Default)]
 pub struct DndState {
@@ -11,6 +11,7 @@ pub struct DndState {
     pub chat: chat::ChatState,
     pub character: character::CharacterState,
     pub user: Option<User>,
+    pub character_list: Vec<String>,
 }
 
 impl DndState {
@@ -18,6 +19,11 @@ impl DndState {
         self.chat.process(&message);
         self.character.process(&message);
         self.board.process(&message);
+
+        match message {
+            DndMessage::CharacterList(list) => self.character_list = list,
+            _ => {}
+        };
     }
 
     pub fn owned_user(&self) -> User {

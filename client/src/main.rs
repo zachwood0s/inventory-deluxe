@@ -47,6 +47,11 @@ fn main() -> eframe::Result {
 
             cc.egui_ctx.set_pixels_per_point(1.5);
 
+            let mut fonts = egui::FontDefinitions::default();
+            egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+
+            cc.egui_ctx.set_fonts(fonts);
+
             Ok(Box::new(MyApp::new(args)))
         }),
     )

@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 common = { path = "../common" }
-eframe = "0.28.1"
-egui = { version = "0.28.1", features = ["serde"] }
-egui_dock = "0.13.0"
-egui_extras = { version = "0.28.1", features = ["all_loaders"] }
+eframe = "0.29.1"
+egui = { version = "0.29.1", features = ["serde"] }
+egui_dock = "0.14.0"
+egui_extras = { version = "0.29.1", features = ["all_loaders"] }
 image = { version = "0.25", features = ["jpeg", "png", "gif"] }
 env_logger = { workspace = true }
 serde = { workspace = true }
@@ -21,4 +21,5 @@ uuid = { workspace = true, features = ["zerocopy", "v4", "bytemuck", "serde"] }
 clap = { version = "4.5.17", features = ["derive"] }
 emath = { workspace = true }
 itertools = { workspace = true }
-egui_demo_lib = "0.28.1"
+egui_demo_lib = "0.29.1"
+egui-phosphor = { version = "0.7.3", features = ["bold", "regular", "fill", "light", "thin"] }

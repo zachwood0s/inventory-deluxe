@@ -167,6 +167,11 @@ impl DndServer {
             let output_data = bincode::serialize(&message).unwrap();
             self.handler.network().send(endpoint, &output_data);
 
+            let character_list = self.get_character_list().unwrap();
+            let message = DndMessage::CharacterList(character_list);
+            let output_data = bincode::serialize(&message).unwrap();
+            self.handler.network().send(endpoint, &output_data);
+
             // Notify other users about this new user
             let message = DndMessage::UserNotificationAdded(name.to_string());
             let output_data = bincode::serialize(&message).unwrap();
@@ -244,21 +249,31 @@ impl DndServer {
         info!("{}'s items {}", user.name, res);
         let items: Vec<DBItemResponse> = serde_json::from_str(&res)?;
 
-        //let res = futures::executor::block_on(async {
-        //    let resp = self
-        //        .db
-        //        .from("character")
-        //        .select("*,inventory(*, items(*))")
-        //        .eq("name", &user.name)
-        //        .execute()
-        //        .await
-        //        .unwrap();
-        //    resp.text().await
-        //})?;
-
-        //info!("Test query resp {}", res);
-
         Ok(items.into_iter().map(|x| x.into()).collect())
+    }
+
+    fn get_character_list(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        info!("Retrieving character list");
+        let res = futures::executor::block_on(async {
+            let resp = self
+                .db
+                .from("character")
+                .select("name")
+                .execute()
+                .await
+                .unwrap();
+            resp.text().await
+        })?;
+
+        info!("{}", res);
+
+        #[derive(serde::Deserialize)]
+        struct Name {
+            name: String,
+        }
+
+        let names: Vec<Name> = serde_json::from_str(&res)?;
+        Ok(names.into_iter().map(|x| x.name).collect())
     }
 
     fn update_item_count(&self, user: User, item_id: i64, new_count: u32) {
@@ -363,6 +378,14 @@ impl DndServer {
         match msg.clone() {
             BoardMessage::AddPlayerPiece(uuid, player) => {
                 self.board_data.players.insert(uuid, player);
+            }
+            BoardMessage::UpdatePlayerPiece(uuid, new_player) => {
+                let Some(player) = self.board_data.players.get_mut(&uuid) else {
+                    error!("Player {uuid} could not be found on the server!");
+                    return;
+                };
+
+                *player = new_player;
             }
             BoardMessage::UpdatePlayerLocation(uuid, new_location) => {
                 let Some(player) = self.board_data.players.get_mut(&uuid) else {

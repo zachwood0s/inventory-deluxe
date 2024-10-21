@@ -1,12 +1,14 @@
+mod abilities;
 mod board;
 mod character;
 mod chat;
 mod items;
+pub mod multi_select;
 mod settings;
-mod abilities;
 
 use std::sync::mpsc::Receiver;
 
+pub use abilities::*;
 pub use board::*;
 pub use character::*;
 pub use chat::*;
@@ -14,7 +16,6 @@ use common::message::DndMessage;
 use egui_dock::{NodeIndex, SurfaceIndex};
 pub use items::*;
 use message_io::events::EventSender;
-pub use abilities::*;
 
 use crate::{
     listener::{CommandQueue, Signal},
