@@ -119,7 +119,9 @@ impl DndServer {
                                 let encoded = bincode::serialize(&msg).unwrap();
                                 self.handler.network().send(endpoint, &encoded);
                             }
-                            Err(e) => error!("Failed to get character stats for {}: {e:?}", user.name),
+                            Err(e) => {
+                                error!("Failed to get character stats for {}: {e:?}", user.name)
+                            }
                         }
 
                         self.send_initial_board_data(endpoint);
@@ -129,6 +131,9 @@ impl DndServer {
                     }
                     DndMessage::UpdateAbilityCount(user, ability_name, count) => {
                         self.update_ability_count(user, ability_name, count)
+                    }
+                    DndMessage::UpdateSkills(user, skill_list) => {
+                        self.update_skills(user, skill_list)
                     }
                     DndMessage::BoardMessage(msg) => self.handle_board_message(endpoint, msg),
                     _ => {
@@ -285,7 +290,7 @@ impl DndServer {
             info!("{}'s item count reached 0, deleting from DB", user.name);
         }
     }
-    
+
     fn update_ability_count(&self, user: User, ability_name: String, new_count: i64) {
         futures::executor::block_on(async {
             self.db
@@ -299,6 +304,29 @@ impl DndServer {
         });
 
         info!("{}'s ability uses updated to {}", user.name, new_count);
+    }
+
+    fn update_skills(&self, user: User, skill_list: Vec<String>) {
+        let Ok(skill_vec) = serde_json::to_string(&skill_list) else {
+            error!(">:(");
+            return;
+        };
+
+        let res = futures::executor::block_on(async {
+            let resp = self
+                .db
+                .from("character")
+                .eq("name", &user.name)
+                .update(format!("{{ \"skills\": {} }}", skill_vec))
+                .execute()
+                .await
+                .unwrap();
+            resp.text().await
+        });
+
+        info!("{:?}", res);
+
+        info!("{}'s skills updated to {}", &user.name, skill_vec);
     }
 
     fn get_character_stats(&self, user: &User) -> Result<Character, Box<dyn Error>> {

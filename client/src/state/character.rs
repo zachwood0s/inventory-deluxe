@@ -76,4 +76,32 @@ pub mod commands {
             tx.send(DndMessage::RetrieveCharacterData(state.owned_user()).into())
         }
     }
+
+    pub struct ToggleSkill {
+        pub skill_name: String,
+    }
+
+    impl ToggleSkill {
+        pub fn new(skill_name: String) -> Self {
+            ToggleSkill { skill_name }
+        }
+    }
+
+    impl Command for ToggleSkill {
+        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+            let user = state.owned_user();
+
+            let skills = &mut state.character.character.skills;
+
+
+            if skills.contains(&self.skill_name) {
+                skills.retain(|x| x != &self.skill_name);
+            }
+            else {
+                skills.push(self.skill_name);
+            }
+
+            tx.send(DndMessage::UpdateSkills(user.clone(), skills.clone()).into());
+        }
+    }
 }

@@ -48,6 +48,7 @@ pub struct Character {
     pub con: i16,
     pub tagline: String,
     pub backstory: String,
+    pub skills: Vec<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
