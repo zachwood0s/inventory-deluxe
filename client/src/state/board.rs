@@ -15,6 +15,7 @@ pub struct PlayerPiece {
     pub selected: bool,
     pub sorting_layer: SortingLayer,
     pub visible_by: Vec<String>,
+    pub locked: bool,
 }
 
 impl PlayerPiece {
@@ -82,6 +83,7 @@ impl BoardState {
                         selected: false,
                         sorting_layer: player.sorting_layer,
                         visible_by: player.visible_by.clone(),
+                        locked: player.locked,
                     },
                 );
             }
@@ -91,6 +93,7 @@ impl BoardState {
                     player.image_url = new_player.image_url.clone();
                     player.sorting_layer = new_player.sorting_layer;
                     player.visible_by = new_player.visible_by.clone();
+                    player.locked = new_player.locked;
                 }
             }
             BoardMessage::UpdatePlayerLocation(uuid, new_pos) => {
@@ -132,6 +135,13 @@ impl BoardState {
             }
         }
         None
+    }
+
+    pub fn is_locked(&self, selected: &Uuid) -> bool {
+        self.players
+            .get(selected)
+            .map(|x| x.locked)
+            .unwrap_or_default()
     }
 }
 
@@ -212,6 +222,7 @@ pub mod commands {
         pub url: Option<String>,
         pub visible_by: Vec<String>,
         pub sorting_layer: SortingLayer,
+        pub locked: bool,
     }
 
     pub struct AddPiece {
@@ -228,6 +239,7 @@ pub mod commands {
                         url,
                         visible_by,
                         sorting_layer,
+                        locked,
                     },
             } = *self;
 
@@ -245,6 +257,7 @@ pub mod commands {
                         color: None,
                         sorting_layer,
                         visible_by,
+                        locked,
                     },
                 ))
                 .into(),
@@ -268,6 +281,7 @@ pub mod commands {
                         url,
                         visible_by,
                         sorting_layer,
+                        locked,
                     },
             } = *self;
 
@@ -284,6 +298,7 @@ pub mod commands {
                         color: None,
                         sorting_layer,
                         visible_by,
+                        locked,
                     },
                 ))
                 .into(),

@@ -73,4 +73,5 @@ pub struct DndPlayerPiece {
     pub color: Option<[u8; 4]>,
     pub sorting_layer: SortingLayer,
     pub visible_by: Vec<String>,
+    pub locked: bool,
 }

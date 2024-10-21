@@ -31,7 +31,7 @@ pub struct Board {
     player_list: Vec<String>,
     sorting_layer: SortingLayer,
 
-    toasted: bool,
+    locked: bool,
 }
 
 impl Default for Board {
@@ -48,7 +48,7 @@ impl Default for Board {
             player_list: Vec::default(),
             sorting_layer: SortingLayer::default(),
 
-            toasted: false,
+            locked: false,
         }
     }
 }
@@ -65,6 +65,8 @@ impl Board {
         self.height = dims.y as u32;
 
         self.sorting_layer = selected.sorting_layer;
+        self.locked = selected.locked;
+        self.player_list = selected.visible_by.clone();
     }
 
     fn character_selection(&mut self, ui: &mut egui::Ui, state: &DndState) {
@@ -117,10 +119,14 @@ impl Board {
                 .interact_pointer_pos()
                 .and_then(|x| state.board.find_selected_player_id(from_screen * x))
             {
-                commands.add(board::commands::Drag(*idx));
+                if !state.board.is_locked(idx) {
+                    commands.add(board::commands::Drag(*idx));
 
-                // Dragging also selects the piece
-                commands.add(board::commands::Select(Some(*idx)));
+                    // Dragging also selects the piece
+                    commands.add(board::commands::Select(Some(*idx)));
+
+                    self.copy_selected_stats(state, idx)
+                }
             }
         } else if response.clicked_by(egui::PointerButton::Primary) {
             // Handle selection of a piece
@@ -175,6 +181,8 @@ impl Board {
                     ui.text_edit_singleline(&mut self.new_url);
                 });
 
+                ui.checkbox(&mut self.locked, "Locked: ");
+
                 if let Some(selected) = state.board.selected_id {
                     if ui.button("Update").clicked() {
                         info!(
@@ -197,6 +205,7 @@ impl Board {
                                 url: image_url,
                                 visible_by: self.player_list.clone(),
                                 sorting_layer: self.sorting_layer,
+                                locked: self.locked,
                             },
                         });
                     }
@@ -216,6 +225,7 @@ impl Board {
                             url: image_url,
                             visible_by: self.player_list.clone(),
                             sorting_layer: self.sorting_layer,
+                            locked: self.locked,
                         },
                     });
                 }
