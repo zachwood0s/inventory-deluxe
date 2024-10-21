@@ -5,7 +5,7 @@ use egui::{ahash::HashMap, Image, Painter, Rounding, Stroke, TextureHandle};
 use itertools::Itertools;
 use uuid::Uuid;
 
-use crate::prelude::*;
+use crate::{prelude::*, view::Board};
 
 pub struct PlayerPiece {
     pub rect: Rect,
@@ -45,8 +45,7 @@ impl PlayerPiece {
     }
 
     fn drop(&mut self) {
-        let center = self.rect.center();
-        let center = (center / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
+        let center = commands::calc_center(self.rect.center(), self.rect.size());
         self.rect.set_center(center);
         self.dragged = false;
     }
@@ -218,6 +217,7 @@ pub mod commands {
     pub struct AddPiece {
         pub params: PieceParams,
     }
+
     impl Command for AddPiece {
         fn execute(self: Box<Self>, _state: &mut DndState, tx: &EventSender<Signal>) {
             let AddPiece {
@@ -231,10 +231,9 @@ pub mod commands {
                     },
             } = *self;
 
-            let center = pos;
-            let center = (center / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
             let uuid = Uuid::new_v4();
             let size = size * Board::GRID_SIZE;
+            let center = calc_center(pos, size);
 
             tx.send(
                 DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(
@@ -272,9 +271,8 @@ pub mod commands {
                     },
             } = *self;
 
-            let center = pos;
-            let center = (center / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
             let size = size * Board::GRID_SIZE;
+            let center = calc_center(pos, size);
 
             tx.send(
                 DndMessage::BoardMessage(BoardMessage::UpdatePlayerPiece(
@@ -291,6 +289,21 @@ pub mod commands {
                 .into(),
             )
         }
+    }
+
+    pub fn calc_center(pos: Pos2, size: Vec2) -> Pos2 {
+        // Get back to a grid cell count
+        let size = size / BoardState::GRID_SIZE;
+        let mut pos = (pos / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
+
+        if (size.x.round() as i32) % 2 == 0 {
+            pos.x -= BoardState::GRID_SIZE / 2.0;
+        }
+        if (size.y.round() as i32) % 2 == 0 {
+            pos.y -= BoardState::GRID_SIZE / 2.0;
+        }
+
+        pos
     }
 
     pub struct DeletePiece(pub Uuid);
