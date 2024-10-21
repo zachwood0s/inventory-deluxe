@@ -175,14 +175,16 @@ impl<'a, 'c> Widget for AbilityWidget<'a, 'c> {
                 .body_unindented(|ui| {
                     egui_demo_lib::easy_mark::easy_mark(ui, &ability.description);
 
-                    if let Some(notes) = &ability.notes {
+                    if let Some(notes) = ability.notes.as_ref().filter(|x| !x.is_empty()) {
                         ui.scope(|ui| {
                             ui.visuals_mut().override_text_color = Some(Color32::DARK_GRAY);
                             egui_demo_lib::easy_mark::easy_mark(ui, &format!("\n{}", notes));
                         });
                     }
 
-                    if let Some(flavor_text) = &ability.flavor_text {
+                    if let Some(flavor_text) =
+                        ability.flavor_text.as_ref().filter(|x| !x.is_empty())
+                    {
                         egui_demo_lib::easy_mark::easy_mark(ui, &format!("\n/{}/", flavor_text));
                     }
                 });
