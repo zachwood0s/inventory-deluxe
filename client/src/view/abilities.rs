@@ -237,7 +237,7 @@ impl DndTabImpl for Abilities {
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
 
-            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
                 ui.label("Power Slots:");
 
                 if ui.button("Reset").clicked() {
