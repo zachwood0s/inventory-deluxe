@@ -43,12 +43,13 @@ pub struct Character {
     pub int: i16,
     pub wis: i16,
     pub str: i16,
-    pub chr: i16,
+    pub cha: i16,
     pub dex: i16,
     pub con: i16,
     pub tagline: String,
     pub backstory: String,
     pub skills: Vec<String>,
+    pub power_slots: i16
 }
 
 #[derive(

@@ -3,13 +3,19 @@ use std::{collections::HashMap, hash::Hash};
 
 use common::Ability;
 use egui::{
-    collapsing_header, epaint, vec2, Color32, DragValue, NumExt, RadioButton, Resize, Sense,
-    TextBuffer, Vec2, Widget,
+    collapsing_header, epaint, vec2, Color32, DragValue, NumExt, RadioButton, Resize, RichText,
+    Sense, TextBuffer, Vec2, Widget,
 };
 use itertools::Itertools;
 use log::info;
 
-use crate::{listener::CommandQueue, state::abilities::commands::SetAbilityCount};
+use crate::{
+    listener::CommandQueue,
+    state::{
+        abilities::commands::{SetAbilityCount, SetPowerSlotCount},
+        DndState,
+    },
+};
 
 use super::DndTabImpl;
 
@@ -97,6 +103,7 @@ impl Widget for Indicator {
 
 struct AbilityWidget<'a, 'c> {
     ability_idx: usize,
+    state: &'a DndState,
     ability: &'a Ability,
     commands: &'a mut CommandQueue<'c>,
 }
@@ -110,7 +117,7 @@ impl<'a, 'c> Widget for AbilityWidget<'a, 'c> {
                 .show_header(ui, |ui| {
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         egui::Frame::none().show(ui, |ui| {
-                            ui.label(egui::RichText::new("Spell").size(10.0));
+                            ui.label(egui::RichText::new(&ability.ability_type).size(10.0));
                         });
                         ui.label(egui::RichText::new(&ability.name).size(14.0));
                     });
@@ -165,7 +172,14 @@ impl<'a, 'c> Widget for AbilityWidget<'a, 'c> {
                             }
                             "PowerSlot" => {
                                 if ui.button("Use").clicked() {
-                                    info!("POWER SLOT USE");
+                                    self.commands.add(SetPowerSlotCount {
+                                        count: self
+                                            .state
+                                            .character
+                                            .character
+                                            .power_slots
+                                            .saturating_sub(1),
+                                    });
                                 }
                             }
                             _ => {}
@@ -202,6 +216,7 @@ impl DndTabImpl for Abilities {
     ) {
         fn ability_list(
             ui: &mut egui::Ui,
+            state: &crate::prelude::DndState,
             commands: &mut CommandQueue,
             abilities: &[Ability],
             ty: &str,
@@ -212,6 +227,7 @@ impl DndTabImpl for Abilities {
                 }
                 AbilityWidget {
                     ability_idx,
+                    state,
                     ability,
                     commands,
                 }
@@ -220,8 +236,30 @@ impl DndTabImpl for Abilities {
         }
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
+
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.label("Power Slots:");
+
+                if ui.button("Reset").clicked() {
+                    commands.add(SetPowerSlotCount { count: 3 });
+                }
+
+                ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
+
+                let shape = IndicatorShape::Circle;
+
+                for ind in 0..3 {
+                    Indicator {
+                        shape,
+                        filled: ind < state.character.character.power_slots,
+                    }
+                    .ui(ui);
+                }
+            });
+
+
             ui.heading("Passives");
-            ability_list(ui, commands, &state.character.abilities, "Passive");
+            ability_list(ui, state, commands, &state.character.abilities, "Passive");
 
             ui.add_space(8.0);
 
@@ -229,14 +267,20 @@ impl DndTabImpl for Abilities {
                 ui.columns(2, |columns| {
                     egui::Frame::none().show(&mut columns[0], |ui| {
                         ui.heading("Actions");
-                        ability_list(ui, commands, &state.character.abilities, "Bonus Action");
-                        ability_list(ui, commands, &state.character.abilities, "Action");
-                        ability_list(ui, commands, &state.character.abilities, "Other");
+                        ability_list(
+                            ui,
+                            state,
+                            commands,
+                            &state.character.abilities,
+                            "Bonus Action",
+                        );
+                        ability_list(ui, state, commands, &state.character.abilities, "Action");
+                        ability_list(ui, state, commands, &state.character.abilities, "Other");
                     });
 
                     egui::Frame::none().show(&mut columns[1], |ui| {
                         ui.heading("Reactions");
-                        ability_list(ui, commands, &state.character.abilities, "Reaction");
+                        ability_list(ui, state, commands, &state.character.abilities, "Reaction");
                     });
                 });
             });

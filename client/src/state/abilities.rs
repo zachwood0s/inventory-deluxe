@@ -54,6 +54,45 @@ pub mod commands {
         }
     }
 
+    pub struct SetPowerSlotCount {
+        pub count: i16,
+    }
+
+    impl SetPowerSlotCount {
+        pub fn new(count: i16) -> Self {
+            Self { count }
+        }
+    }
+
+    impl Command for SetPowerSlotCount {
+        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+            let user = state.owned_user();
+
+            let power_slots = &mut state.character.character.power_slots;
+
+            *power_slots = self.count;
+
+                // Update item count in DB
+                tx.send(
+                    DndMessage::UpdatePowerSlotCount(
+                        user.clone(),
+                        *power_slots,
+                    )
+                    .into(),
+                );
+
+                /*
+                // Send Log Message
+                tx.send(
+                    DndMessage::Log(
+                        user,
+                        LogMessage::SetAbilityCount(ability.name.clone(), self.count),
+                    )
+                    .into(),
+                );
+                */
+        }
+    }
     pub struct RefreshCharacter;
 
     impl Command for RefreshCharacter {

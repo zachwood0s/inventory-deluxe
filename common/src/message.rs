@@ -34,6 +34,7 @@ pub enum DndMessage {
     /// (User, id, new_count)
     UpdateItemCount(User, i64, u32),
     UpdateAbilityCount(User, String, i64),
+    UpdatePowerSlotCount(User, i16),
 
     UpdateSkills(User, Vec<String>),
 

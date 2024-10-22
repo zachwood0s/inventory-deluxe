@@ -135,6 +135,9 @@ impl DndServer {
                     DndMessage::UpdateSkills(user, skill_list) => {
                         self.update_skills(user, skill_list)
                     }
+                    DndMessage::UpdatePowerSlotCount(user, count) => {
+                        self.update_powerslot_count(user, count.into());
+                    }
                     DndMessage::BoardMessage(msg) => self.handle_board_message(endpoint, msg),
                     _ => {
                         warn!("Unhandled message {message:?}");
@@ -313,6 +316,20 @@ impl DndServer {
                 .eq("player", &user.name)
                 .eq("ability_name", ability_name)
                 .update(format!("{{ \"uses\": {} }}", new_count))
+                .execute()
+                .await
+                .unwrap();
+        });
+
+        info!("{}'s ability uses updated to {}", user.name, new_count);
+    }
+
+    fn update_powerslot_count(&self, user: User, new_count: i64) {
+        futures::executor::block_on(async {
+            self.db
+                .from("characters")
+                .eq("player", &user.name)
+                .update(format!("{{ \"power_slots\": {} }}", new_count))
                 .execute()
                 .await
                 .unwrap();

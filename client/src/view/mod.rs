@@ -13,6 +13,7 @@ pub use board::*;
 pub use character::*;
 pub use chat::*;
 use common::message::DndMessage;
+use egui::Color32;
 use egui_dock::{NodeIndex, SurfaceIndex};
 pub use items::*;
 use message_io::events::EventSender;
@@ -67,6 +68,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        ui.visuals_mut().code_bg_color = Color32::TRANSPARENT;
         tab.kind.ui(ui, self.state, &mut self.network);
     }
 

@@ -60,7 +60,7 @@ impl ModScore for i16 {
 impl CharStat {
     fn get_mod_score(self, char: &common::Character) -> i64 {
         let stat = match self {
-            CharStat::Cha => char.chr,
+            CharStat::Cha => char.cha,
             CharStat::Str => char.str,
             CharStat::Wis => char.wis,
             CharStat::Int => char.int,
@@ -213,7 +213,7 @@ impl DndTabImpl for Character {
             ui.separator();
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                StatWidget::new("CHR", char.chr).ui(ui);
+                StatWidget::new("CHA", char.cha).ui(ui);
                 StatWidget::new("STR", char.str).ui(ui);
                 StatWidget::new("WIS", char.wis).ui(ui);
                 StatWidget::new("INT", char.int).ui(ui);
@@ -231,7 +231,7 @@ impl DndTabImpl for Character {
                 .column(Column::auto())
                 .column(Column::auto())
                 .column(Column::exact(120.0))
-                .column(Column::exact(14.0))
+                .column(Column::exact(16.0))
                 .column(Column::exact(6.0))
                 .cell_layout(egui::Layout::left_to_right(Align::Center));
 
@@ -253,10 +253,7 @@ impl DndTabImpl for Character {
                     });
 
                     row.col(|ui| {
-                        ui.label(
-                            RichText::new(format!("{}", skill.stat))
-                                .monospace()
-                        );
+                        ui.label(RichText::new(format!("{}", skill.stat)).monospace());
                     });
 
                     row.col(|ui| {
