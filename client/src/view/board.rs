@@ -3,7 +3,10 @@ use crate::{
     state::board::commands::{Drag, PieceParams},
 };
 use common::SortingLayer;
-use egui::{epaint::PathStroke, Color32, DragValue, Frame, Image, Painter, Rect, Shape, Widget};
+use egui::{
+    epaint::PathStroke, Color32, DragValue, Frame, Image, Painter, Rect, Rounding, Shape, Stroke,
+    Widget,
+};
 use emath::RectTransform;
 use itertools::Itertools;
 use log::info;
@@ -22,6 +25,9 @@ use super::{multi_select::MultiSelect, DndTabImpl};
 pub struct Board {
     mouse_pos: Pos2,
     grid_origin: Pos2,
+    drag_offset: Vec2,
+    highlight_start_pos: Option<Pos2>,
+    highlight_end_pos: Pos2,
     zoom: f32,
     width: u32,
     height: u32,
@@ -39,6 +45,9 @@ impl Default for Board {
         Self {
             mouse_pos: Pos2::ZERO,
             grid_origin: Pos2::ZERO,
+            drag_offset: Vec2::ZERO,
+            highlight_start_pos: None,
+            highlight_end_pos: Pos2::ZERO,
             zoom: 1.0,
             width: 0,
             height: 0,
@@ -109,25 +118,68 @@ impl Board {
             // We have a selected piece so move its position
             if let Some(pointer_pos) = response.interact_pointer_pos() {
                 let canvas_pos = from_screen * pointer_pos;
-                commands.add(board::commands::SetPlayerPosition::new(dragged, canvas_pos));
+                commands.add(board::commands::SetPlayerPosition::new(
+                    dragged,
+                    canvas_pos + self.drag_offset,
+                ));
             } else {
                 commands.add(board::commands::Drop)
             }
-        } else if response.dragged_by(egui::PointerButton::Primary) {
+        } else if response.dragged_by(egui::PointerButton::Primary)
+            && ui.input(|input| !input.modifiers.any())
+        {
             // Handle initial dragging of a piece
-            if let Some(idx) = response
+            if let Some(uuid) = response
                 .interact_pointer_pos()
                 .and_then(|x| state.board.find_selected_player_id(from_screen * x))
             {
-                if !state.board.is_locked(idx) {
-                    commands.add(board::commands::Drag(*idx));
+                if !state.board.is_locked(uuid) {
+                    // Get dragging offset
+                    let pointer_canvas_pos = from_screen * response.interact_pointer_pos().unwrap();
+                    let piece_canvas_pos = state.board.get_position(uuid).unwrap();
+
+                    self.drag_offset = piece_canvas_pos - pointer_canvas_pos;
+
+                    commands.add(board::commands::Drag(*uuid));
 
                     // Dragging also selects the piece
-                    commands.add(board::commands::Select(Some(*idx)));
+                    commands.add(board::commands::Select(Some(*uuid)));
 
-                    self.copy_selected_stats(state, idx)
+                    self.copy_selected_stats(state, uuid)
                 }
             }
+        } else if let Some(_) = self.highlight_start_pos {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                self.highlight_end_pos = pointer_pos;
+            } else {
+                let size_rect = Rect::from_two_pos(
+                    (from_screen * self.highlight_end_pos * 10.0).round(),
+                    (from_screen * self.highlight_start_pos.unwrap() * 10.0).round(),
+                );
+
+                let center_rect = Rect::from_two_pos(
+                    (from_screen * self.highlight_end_pos / Board::GRID_SIZE).round() * Board::GRID_SIZE,
+                    (from_screen * self.highlight_start_pos.unwrap() / Board::GRID_SIZE).round() * Board::GRID_SIZE,
+                );
+
+                commands.add(board::commands::AddPiece {
+                    params: PieceParams {
+                        pos: center_rect.left_top(),
+                        size: size_rect.size(),
+                        url: None,
+                        visible_by: vec![],
+                        sorting_layer: common::SortingLayer(10),
+                        locked: false,
+                    },
+                });
+
+                self.highlight_start_pos = None;
+            }
+        } else if ui.input(|input| input.modifiers.ctrl)
+            && response.is_pointer_button_down_on()
+        {
+            self.highlight_start_pos = response.interact_pointer_pos();
+            self.highlight_end_pos = response.interact_pointer_pos().unwrap();
         } else if response.clicked_by(egui::PointerButton::Primary) {
             // Handle selection of a piece
             let selected_idx = response
@@ -200,7 +252,7 @@ impl Board {
                         commands.add(board::commands::UpdatePiece {
                             piece_id: selected,
                             params: PieceParams {
-                                pos: from_screen * self.mouse_pos,
+                                pos: Pos2::ZERO,
                                 size: Vec2::new(self.width as f32, self.height as f32),
                                 url: image_url,
                                 visible_by: self.player_list.clone(),
@@ -250,6 +302,12 @@ impl Board {
             player.draw_shape(ui, &painter, to_screen);
         }
 
+        if let Some(pointer_pos) = self.highlight_start_pos {
+            //Draw highlight rect
+            let rect = Rect::from_two_pos(pointer_pos, self.highlight_end_pos);
+            painter.rect_stroke(rect, Rounding::ZERO, Stroke::new(1.0, Color32::LIGHT_BLUE));
+        }
+
         response
     }
 
@@ -260,7 +318,7 @@ impl Board {
         let topleft_boundary = self.grid_origin - dims / 2.0;
 
         let round = topleft_boundary.y.rem_euclid(Board::GRID_SIZE);
-        let y_start = topleft_boundary.y - round + Board::GRID_SIZE / 2.0;
+        let y_start = topleft_boundary.y - round;
         for y in (0..num_y).map(|x| x as f32 * Board::GRID_SIZE + y_start) {
             painter.add(Shape::line_segment(
                 [
@@ -272,7 +330,7 @@ impl Board {
         }
 
         let round = topleft_boundary.x.rem_euclid(Board::GRID_SIZE);
-        let x_start = topleft_boundary.x - round + Board::GRID_SIZE / 2.0;
+        let x_start = topleft_boundary.x - round;
         for x in (0..num_x).map(|x| x as f32 * Board::GRID_SIZE + x_start) {
             painter.add(Shape::line_segment(
                 [

@@ -1,7 +1,7 @@
 use std::cmp;
 
 use common::SortingLayer;
-use egui::{ahash::HashMap, Image, Painter, Rounding, Stroke, TextureHandle};
+use egui::{ahash::HashMap, Image, Painter, Rounding, Stroke, TextureHandle, TextureOptions};
 use itertools::Itertools;
 use uuid::Uuid;
 
@@ -26,6 +26,9 @@ impl PlayerPiece {
 
         if let Some(url) = &self.image_url {
             Image::new(url)
+                .texture_options(
+                    TextureOptions::LINEAR.with_mipmap_mode(Some(egui::TextureFilter::Linear)),
+                )
                 .tint(Color32::from_white_alpha(alpha))
                 .paint_at(ui, transformed);
         } else {
@@ -46,8 +49,8 @@ impl PlayerPiece {
     }
 
     fn drop(&mut self) {
-        let center = commands::calc_center(self.rect.center(), self.rect.size());
-        self.rect.set_center(center);
+        let pos = commands::snap_to_grid(self.rect.left_top());
+        self.rect = Rect::from_two_pos(pos, pos + self.rect.size());
         self.dragged = false;
     }
 
@@ -76,7 +79,7 @@ impl BoardState {
                 self.players.insert(
                     *uuid,
                     PlayerPiece {
-                        rect: Rect::from_center_size(player.position, player.size),
+                        rect: Rect::from_two_pos(player.position, player.position + player.size),
                         image_url: player.image_url.clone(),
                         color: None,
                         dragged: false,
@@ -89,7 +92,10 @@ impl BoardState {
             }
             BoardMessage::UpdatePlayerPiece(uuid, new_player) => {
                 if let Some(player) = self.players.get_mut(uuid) {
-                    player.rect = Rect::from_center_size(new_player.position, new_player.size);
+                    player.rect = Rect::from_two_pos(
+                        new_player.position,
+                        new_player.position + new_player.size,
+                    );
                     player.image_url = new_player.image_url.clone();
                     player.sorting_layer = new_player.sorting_layer;
                     player.visible_by = new_player.visible_by.clone();
@@ -98,7 +104,7 @@ impl BoardState {
             }
             BoardMessage::UpdatePlayerLocation(uuid, new_pos) => {
                 if let Some(player) = self.players.get_mut(uuid) {
-                    player.rect.set_center(*new_pos)
+                    player.rect = Rect::from_two_pos(*new_pos, *new_pos + player.rect.size());
                 }
             }
             BoardMessage::DeletePlayerPiece(uuid) => {
@@ -143,6 +149,10 @@ impl BoardState {
             .map(|x| x.locked)
             .unwrap_or_default()
     }
+
+    pub fn get_position(&self, uuid: &Uuid) -> Option<Pos2> {
+        self.players.get(uuid).map(|x| x.rect.left_top())
+    }
 }
 
 pub mod commands {
@@ -182,7 +192,7 @@ pub mod commands {
                 tx.send(
                     DndMessage::BoardMessage(BoardMessage::UpdatePlayerLocation(
                         id,
-                        piece.rect.center(),
+                        piece.rect.left_top(),
                     ))
                     .into(),
                 );
@@ -245,13 +255,13 @@ pub mod commands {
 
             let uuid = Uuid::new_v4();
             let size = size * Board::GRID_SIZE;
-            let center = calc_center(pos, size);
+            let pos = snap_to_grid(pos);
 
             tx.send(
                 DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(
                     uuid,
                     common::DndPlayerPiece {
-                        position: center,
+                        position: pos,
                         size,
                         image_url: url,
                         color: None,
@@ -276,7 +286,7 @@ pub mod commands {
                 piece_id,
                 params:
                     PieceParams {
-                        pos,
+                        pos: _pos,
                         size,
                         url,
                         visible_by,
@@ -286,13 +296,13 @@ pub mod commands {
             } = *self;
 
             let size = size * Board::GRID_SIZE;
-            let center = calc_center(pos, size);
+            let piece_pos = snap_to_grid(state.board.get_position(&piece_id).unwrap());
 
             tx.send(
                 DndMessage::BoardMessage(BoardMessage::UpdatePlayerPiece(
                     piece_id,
                     common::DndPlayerPiece {
-                        position: center,
+                        position: piece_pos,
                         size,
                         image_url: url,
                         color: None,
@@ -306,19 +316,9 @@ pub mod commands {
         }
     }
 
-    pub fn calc_center(pos: Pos2, size: Vec2) -> Pos2 {
+    pub fn snap_to_grid(pos: Pos2) -> Pos2 {
         // Get back to a grid cell count
-        let size = size / BoardState::GRID_SIZE;
-        let mut pos = (pos / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE;
-
-        if (size.x.round() as i32) % 2 == 0 {
-            pos.x -= BoardState::GRID_SIZE / 2.0;
-        }
-        if (size.y.round() as i32) % 2 == 0 {
-            pos.y -= BoardState::GRID_SIZE / 2.0;
-        }
-
-        pos
+        (pos / BoardState::GRID_SIZE).round() * BoardState::GRID_SIZE
     }
 
     pub struct DeletePiece(pub Uuid);
