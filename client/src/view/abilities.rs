@@ -4,7 +4,7 @@ use std::{collections::HashMap, hash::Hash};
 use common::Ability;
 use egui::{
     collapsing_header, epaint, vec2, Color32, DragValue, NumExt, RadioButton, Resize, RichText,
-    Sense, TextBuffer, Vec2, Widget,
+    ScrollArea, Sense, TextBuffer, Vec2, Widget,
 };
 use itertools::Itertools;
 use log::info;
@@ -236,53 +236,47 @@ impl DndTabImpl for Abilities {
         }
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
+            ScrollArea::new([false, true]).show(ui, |ui| {
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                    ui.label("Power Slots:");
 
-            ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
-                ui.label("Power Slots:");
-
-                if ui.button("Reset").clicked() {
-                    commands.add(SetPowerSlotCount { count: 3 });
-                }
-
-                ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
-
-                let shape = IndicatorShape::Circle;
-
-                for ind in 0..3 {
-                    Indicator {
-                        shape,
-                        filled: ind < state.character.character.power_slots,
+                    if ui.button("Reset").clicked() {
+                        commands.add(SetPowerSlotCount { count: 3 });
                     }
-                    .ui(ui);
-                }
-            });
 
+                    ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
 
-            ui.heading("Passives");
-            ability_list(ui, state, commands, &state.character.abilities, "Passive");
+                    let shape = IndicatorShape::Circle;
 
-            ui.add_space(8.0);
-
-            egui::Frame::none().show(ui, |ui| {
-                ui.columns(2, |columns| {
-                    egui::Frame::none().show(&mut columns[0], |ui| {
-                        ui.heading("Actions");
-                        ability_list(
-                            ui,
-                            state,
-                            commands,
-                            &state.character.abilities,
-                            "Bonus Action",
-                        );
-                        ability_list(ui, state, commands, &state.character.abilities, "Action");
-                        ability_list(ui, state, commands, &state.character.abilities, "Other");
-                    });
-
-                    egui::Frame::none().show(&mut columns[1], |ui| {
-                        ui.heading("Reactions");
-                        ability_list(ui, state, commands, &state.character.abilities, "Reaction");
-                    });
+                    for ind in 0..3 {
+                        Indicator {
+                            shape,
+                            filled: ind < state.character.character.power_slots,
+                        }
+                        .ui(ui);
+                    }
                 });
+
+                ui.heading("Passives");
+                ability_list(ui, state, commands, &state.character.abilities, "Passive");
+
+                ui.add_space(8.0);
+
+                ui.heading("Reactions");
+                ability_list(ui, state, commands, &state.character.abilities, "Reaction");
+
+                ui.add_space(8.0);
+
+                ui.heading("Actions");
+                ability_list(
+                    ui,
+                    state,
+                    commands,
+                    &state.character.abilities,
+                    "Bonus Action",
+                );
+                ability_list(ui, state, commands, &state.character.abilities, "Action");
+                ability_list(ui, state, commands, &state.character.abilities, "Other");
             });
         });
     }
