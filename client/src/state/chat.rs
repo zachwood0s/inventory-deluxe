@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
+use rand::{Rng};
 
 pub struct ClientLogMessage {
     pub user: User,
@@ -71,6 +72,9 @@ impl ClientLogMessage {
 
                 ui.label(layout_job);
             }
+            LogMessage::Roll(die, value) => {
+                ui.colored_label(Color32::DARK_GRAY, format!("d{} = {}", die, value));
+            }
         };
     }
 }
@@ -96,7 +100,11 @@ impl ChatState {
 }
 
 pub mod commands {
+    use itertools::Itertools;
+
     use crate::prelude::*;
+
+    use super::{roll_die};
 
     pub struct ChatCommand {
         text: String,
@@ -106,11 +114,58 @@ pub mod commands {
         pub fn new(text: String) -> Self {
             Self { text }
         }
+
+        fn parse_cmd(&self, cmd: &str, state: &mut DndState) -> Result<DndMessage, Box<dyn std::error::Error>> {
+            let cmd_parts = cmd.split(" ").collect_vec();
+            match cmd_parts.get(0) {
+                // roll
+                Some(&"roll") | Some(&"r") | Some(&"d") => {
+                    let roll = *cmd_parts.get(1).ok_or(format!("no roll value given"))?;
+                    match roll_die(&roll) {
+                        Ok((die, val)) => {
+                            return Ok(DndMessage::Log(state.owned_user(), LogMessage::Roll(die, val)));
+                        }
+                        Err(e) => { return Err("bad cmd try again".into()); }
+                    }
+                },
+                // add more cmds if you want cale
+                _ => { return Err("bad cmd try again".into()); }
+            }
+        }
     }
 
     impl Command for ChatCommand {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            tx.send(DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into())
+            let mut text_it = self.text.chars();
+            match text_it.next() {
+                Some('/') => {
+                    let cmd = text_it.as_str();
+                    match self.parse_cmd(cmd, state) {
+                        Ok(msg) => {tx.send(msg.into())}
+                        _ => {}
+                    };
+                },
+                // little special case here for d for dnd
+                Some('d') => {
+                    let die = ["d ", text_it.as_str()].concat();
+                    match self.parse_cmd(&die, state) {
+                        Ok(msg) => {tx.send(msg.into())}
+                        _ => {
+                            tx.send(DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into())
+                        }
+                    };
+                }
+                None => {},
+                _ => tx.send(DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into())
+            }
         }
     }
+}
+
+fn roll_die(roll: &str) -> Result<(u32, u32), Box<dyn std::error::Error>> {
+    let die = roll.parse()?;
+    let mut rng = rand::thread_rng();
+    let die_val: u32 = rng.gen_range(0..die);
+    let die_tuple = (die, die_val);
+    return Ok(die_tuple);
 }

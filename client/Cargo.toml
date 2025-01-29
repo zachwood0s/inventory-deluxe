@@ -23,3 +23,4 @@ emath = { workspace = true }
 itertools = { workspace = true }
 egui_demo_lib = "0.29.1"
 egui-phosphor = { version = "0.7.3", features = ["bold", "regular", "fill", "light", "thin"] }
+rand = { workspace = true }

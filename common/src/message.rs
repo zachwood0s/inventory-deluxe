@@ -12,6 +12,7 @@ pub enum LogMessage {
     SetAbilityCount(String, i64),
     Joined(String),
     Disconnected(String),
+    Roll(u32, u32),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
