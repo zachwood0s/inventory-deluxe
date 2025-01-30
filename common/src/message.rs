@@ -23,7 +23,7 @@ pub enum BoardMessage {
     DeletePlayerPiece(Uuid),
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
 pub enum DndMessage {
     // Bidirectional
     Log(User, LogMessage),

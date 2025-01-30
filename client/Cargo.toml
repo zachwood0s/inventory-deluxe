@@ -21,6 +21,13 @@ uuid = { workspace = true, features = ["zerocopy", "v4", "bytemuck", "serde"] }
 clap = { version = "4.5.17", features = ["derive"] }
 emath = { workspace = true }
 itertools = { workspace = true }
+thiserror = { workspace = true }
 egui_demo_lib = "0.29.1"
-egui-phosphor = { version = "0.7.3", features = ["bold", "regular", "fill", "light", "thin"] }
 rand = { workspace = true }
+egui-phosphor = { version = "0.7.3", features = [
+  "bold",
+  "regular",
+  "fill",
+  "light",
+  "thin",
+] }

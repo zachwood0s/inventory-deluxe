@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
-use rand::{Rng};
 
 pub struct ClientLogMessage {
     pub user: User,
@@ -100,11 +99,12 @@ impl ChatState {
 }
 
 pub mod commands {
+
     use itertools::Itertools;
+    use rand::Rng;
+    use thiserror::Error;
 
     use crate::prelude::*;
-
-    use super::{roll_die};
 
     pub struct ChatCommand {
         text: String,
@@ -115,21 +115,27 @@ pub mod commands {
             Self { text }
         }
 
-        fn parse_cmd(&self, cmd: &str, state: &mut DndState) -> Result<DndMessage, Box<dyn std::error::Error>> {
+        fn parse_cmd(
+            &self,
+            cmd: &str,
+            state: &mut DndState,
+        ) -> Result<DndMessage, ChatCommandError> {
             let cmd_parts = cmd.split(" ").collect_vec();
-            match cmd_parts.get(0) {
+            match cmd_parts.first() {
                 // roll
                 Some(&"roll") | Some(&"r") | Some(&"d") => {
-                    let roll = *cmd_parts.get(1).ok_or(format!("no roll value given"))?;
-                    match roll_die(&roll) {
-                        Ok((die, val)) => {
-                            return Ok(DndMessage::Log(state.owned_user(), LogMessage::Roll(die, val)));
-                        }
-                        Err(e) => { return Err("bad cmd try again".into()); }
-                    }
-                },
+                    let roll = *cmd_parts
+                        .get(1)
+                        .ok_or(ChatCommandError::ExpectedMoreArgs(1))?;
+
+                    roll_die(roll)
+                        .map(|(die, val)| {
+                            DndMessage::Log(state.owned_user(), LogMessage::Roll(die, val))
+                        })
+                        .map_err(|e| e.into())
+                }
                 // add more cmds if you want cale
-                _ => { return Err("bad cmd try again".into()); }
+                _ => Err(ChatCommandError::BadCommand),
             }
         }
     }
@@ -141,31 +147,52 @@ pub mod commands {
                 Some('/') => {
                     let cmd = text_it.as_str();
                     match self.parse_cmd(cmd, state) {
-                        Ok(msg) => {tx.send(msg.into())}
-                        _ => {}
+                        Ok(msg) => tx.send(msg.into()),
+                        e => {
+                            error!("Error parsing command: {e:?}")
+                        }
                     };
-                },
+                }
                 // little special case here for d for dnd
                 Some('d') => {
                     let die = ["d ", text_it.as_str()].concat();
                     match self.parse_cmd(&die, state) {
-                        Ok(msg) => {tx.send(msg.into())}
-                        _ => {
-                            tx.send(DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into())
-                        }
+                        Ok(msg) => tx.send(msg.into()),
+                        _ => tx.send(
+                            DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into(),
+                        ),
                     };
                 }
-                None => {},
-                _ => tx.send(DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into())
+                None => {}
+                _ => {
+                    tx.send(DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into())
+                }
             }
         }
     }
-}
 
-fn roll_die(roll: &str) -> Result<(u32, u32), Box<dyn std::error::Error>> {
-    let die = roll.parse()?;
-    let mut rng = rand::thread_rng();
-    let die_val: u32 = rng.gen_range(0..die);
-    let die_tuple = (die, die_val);
-    return Ok(die_tuple);
+    #[derive(Error, Debug)]
+    enum ChatCommandError {
+        #[error("bad cmd try again")]
+        BadCommand,
+        #[error("stupid stupid stupdi; needed {0} args")]
+        ExpectedMoreArgs(u32),
+        #[error("error parsing dice roll {0}")]
+        DiceRollError(#[from] DiceRollError),
+    }
+
+    #[derive(Error, Debug)]
+    enum DiceRollError {
+        #[error("Failed to parse the dice number")]
+        ParseError(#[from] std::num::ParseIntError),
+    }
+
+    fn roll_die(roll: &str) -> Result<(u32, u32), DiceRollError> {
+        let die = roll.parse()?;
+        let mut rng = rand::rng();
+        let die_val: u32 = rng.random_range(0..die);
+        let die_tuple = (die, die_val);
+
+        Ok(die_tuple)
+    }
 }
