@@ -135,6 +135,9 @@ impl DndServer {
                     DndMessage::UpdateSkills(user, skill_list) => {
                         self.update_skills(user, skill_list)
                     }
+                    DndMessage::UpdateHealth(user, curr_health, max_health) => {
+                        self.update_health(user, curr_health, max_health)
+                    }
                     DndMessage::UpdatePowerSlotCount(user, count) => {
                         self.update_powerslot_count(user, count.into());
                     }
@@ -359,6 +362,24 @@ impl DndServer {
         info!("{:?}", res);
 
         info!("{}'s skills updated to {}", &user.name, skill_vec);
+    }
+
+    fn update_health(&self, user: User, curr_health: i16, max_health: i16) {
+        let res = futures::executor::block_on(async {
+            let resp = self
+                .db
+                .from("character")
+                .eq("name", &user.name)
+                .update(format!("{{ \"curr_hp\": {curr_health}, \"max_hp\": {max_health}}}"))
+                .execute()
+                .await
+                .unwrap();
+            resp.text().await
+        });
+
+        info!("{:?}", res);
+
+        info!("{}'s health updated to {curr_health}/{max_health}", &user.name);
     }
 
     fn get_character_stats(&self, user: &User) -> Result<Character, Box<dyn Error>> {

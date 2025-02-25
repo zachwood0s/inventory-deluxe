@@ -2,12 +2,10 @@ use std::fmt::Display;
 
 use crate::{
     prelude::*,
-    state::character::commands::{RefreshCharacter, ToggleSkill},
+    state::character::commands::{CharacterHealth, RefreshCharacter, ToggleSkill},
 };
 use egui::{
-    collapsing_header, popup_below_widget, text::LayoutJob, tooltip_id, Align, Button,
-    CentralPanel, CollapsingHeader, Color32, DragValue, Frame, Label, Margin, Resize, RichText,
-    TopBottomPanel, Vec2, Widget,
+    collapsing_header, popup_below_widget, text::LayoutJob, tooltip_id, Align, Button, CentralPanel, CollapsingHeader, Color32, DragValue, Frame, Label, Margin, ProgressBar, Resize, RichText, Rounding, TextBuffer, TextEdit, TopBottomPanel, Vec2, Widget
 };
 use egui_extras::{Column, TableBuilder};
 use serde::de::IntoDeserializer;
@@ -191,11 +189,14 @@ impl egui::Widget for StatWidget {
 }
 
 #[derive(Default)]
-pub struct Character;
+pub struct Character {
+    temp_curr_hp: Option<i16>,
+    temp_max_hp: Option<i16>,
+}
 
 impl DndTabImpl for Character {
     fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, commands: &mut CommandQueue) {
-        let char = &state.character.character;
+        let char = &state.character.stats;
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.horizontal(|ui| {
@@ -210,6 +211,34 @@ impl DndTabImpl for Character {
             ui.add_space(4.0);
 
             ui.label(RichText::new(format!("\"{}\"", char.tagline)).italics());
+
+            // health
+            ui.horizontal(|ui| {
+                if self.temp_curr_hp.is_none() {
+                    self.temp_curr_hp = Some(char.curr_hp);
+                }
+                if self.temp_max_hp.is_none() {
+                    self.temp_max_hp = Some(char.max_hp);
+                }
+                let max_hp = self.temp_max_hp.as_mut().unwrap();
+                let curr_hp = self.temp_curr_hp.as_mut().unwrap();
+                let curr_hp_resp = egui::DragValue::new(curr_hp)
+                    .range(0..=char.max_hp)
+                    .ui(ui);
+                ui.label("/");
+                let max_hp_resp = egui::DragValue::new(max_hp)
+                    .range(0..=u16::MAX)
+                    .ui(ui);
+                ui.label("hp");
+                let curr_focus_lost = curr_hp_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let max_focus_lost = max_hp_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                if curr_focus_lost || curr_hp_resp.drag_stopped() ||
+                   max_focus_lost || max_hp_resp.drag_stopped()  {
+                    commands.add(CharacterHealth::new(*curr_hp, *max_hp));
+                }
+            });
+
+            // stats
             ui.separator();
             ui.add_space(6.0);
             ui.horizontal(|ui| {

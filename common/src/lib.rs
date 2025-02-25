@@ -49,7 +49,9 @@ pub struct Character {
     pub tagline: String,
     pub backstory: String,
     pub skills: Vec<String>,
-    pub power_slots: i16
+    pub power_slots: i16,
+    pub max_hp: i16,
+    pub curr_hp: i16,
 }
 
 #[derive(

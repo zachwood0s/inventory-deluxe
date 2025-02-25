@@ -68,7 +68,7 @@ pub mod commands {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
             let user = state.owned_user();
 
-            let power_slots = &mut state.character.character.power_slots;
+            let power_slots = &mut state.character.stats.power_slots;
 
             *power_slots = self.count;
 

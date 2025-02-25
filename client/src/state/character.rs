@@ -2,7 +2,7 @@ use common::{message::DndMessage, Ability, Item};
 
 #[derive(Default)]
 pub struct CharacterState {
-    pub character: common::Character,
+    pub stats: common::Character,
     pub items: Vec<Item>,
     pub abilities: Vec<Ability>,
 }
@@ -15,7 +15,7 @@ impl CharacterState {
                 self.items = items.clone();
             }
             DndMessage::CharacterData(character) => {
-                self.character = character.clone();
+                self.stats = character.clone();
             }
             DndMessage::AbilityList(abilities) => {
                 self.abilities = abilities.clone();
@@ -91,7 +91,7 @@ pub mod commands {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
             let user = state.owned_user();
 
-            let skills = &mut state.character.character.skills;
+            let skills = &mut state.character.stats.skills;
 
 
             if skills.contains(&self.skill_name) {
@@ -104,4 +104,29 @@ pub mod commands {
             tx.send(DndMessage::UpdateSkills(user.clone(), skills.clone()).into());
         }
     }
+
+    pub struct CharacterHealth {
+        pub max_hp: i16,
+        pub curr_hp: i16,
+    }
+
+    impl CharacterHealth {
+        pub fn new(curr_hp: i16, max_hp: i16) -> Self {
+            let curr_hp = curr_hp.clamp(0, max_hp);
+            CharacterHealth { curr_hp, max_hp }
+        }
+    }
+
+    impl Command for CharacterHealth {
+        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+            let user = state.owned_user();
+            let stats = &mut state.character.stats;
+
+            stats.max_hp = self.max_hp;
+            stats.curr_hp = self.curr_hp;
+
+            tx.send(DndMessage::UpdateHealth(user.clone(), stats.curr_hp.clone(), stats.max_hp.clone()).into());
+        }
+    }
+
 }

@@ -148,8 +148,8 @@ pub mod commands {
                     let cmd = text_it.as_str();
                     match self.parse_cmd(cmd, state) {
                         Ok(msg) => tx.send(msg.into()),
-                        e => {
-                            error!("Error parsing command: {e:?}")
+                        Err(e) => {
+                            error!("Error parsing command: {e}")
                         }
                     };
                 }

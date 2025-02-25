@@ -37,7 +37,9 @@ pub enum DndMessage {
     UpdateAbilityCount(User, String, i64),
     UpdatePowerSlotCount(User, i16),
 
+    // Character
     UpdateSkills(User, Vec<String>),
+    UpdateHealth(User, i16, i16),
 
     // Board
     BoardMessage(BoardMessage),
