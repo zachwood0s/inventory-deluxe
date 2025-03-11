@@ -190,7 +190,7 @@ pub mod commands {
     fn roll_die(roll: &str) -> Result<(u32, u32), DiceRollError> {
         let die = roll.parse()?;
         let mut rng = rand::rng();
-        let die_val: u32 = rng.random_range(0..die);
+        let die_val: u32 = rng.random_range(1..=die);
         let die_tuple = (die, die_val);
 
         Ok(die_tuple)
