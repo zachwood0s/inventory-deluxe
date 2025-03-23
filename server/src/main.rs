@@ -3,6 +3,7 @@ use std::{
     error::Error,
     io,
     net::{SocketAddr, ToSocketAddrs},
+    time::Duration,
 };
 
 use log::{error, info, warn};
@@ -19,6 +20,9 @@ use postgrest::Postgrest;
 
 mod db_types;
 use db_types::*;
+use thiserror::Error;
+
+const AUTOSAVE_TIME_IN_SECS: u64 = 30;
 
 struct ClientInfo {
     user_data: User,
@@ -39,17 +43,27 @@ struct BoardData {
     players: HashMap<uuid::Uuid, DndPlayerPiece>,
 }
 
+enum Signal {
+    Autosave,
+}
+
+#[derive(Error, Debug)]
+enum ServerError {
+    #[error("No board saves exist, starting fresh!")]
+    NoBoardSaves,
+}
+
 pub struct DndServer {
-    handler: NodeHandler<()>,
+    handler: NodeHandler<Signal>,
     board_data: BoardData,
-    node_listener: Option<NodeListener<()>>,
+    node_listener: Option<NodeListener<Signal>>,
     users: HashMap<String, ClientInfo>,
     db: Postgrest,
 }
 
 impl DndServer {
     pub fn new(addr: &str, port: u16) -> io::Result<Self> {
-        let (handler, node_listener) = node::split::<()>();
+        let (handler, node_listener) = node::split::<Signal>();
         let addr = (addr, port).to_socket_addrs().unwrap().next().unwrap();
 
         handler.network().listen(Transport::Ws, addr)?;
@@ -64,104 +78,135 @@ impl DndServer {
 
         info!("Server running at {}", addr);
 
-        Ok(Self {
+        handler
+            .signals()
+            .send_with_timer(Signal::Autosave, Duration::from_secs(AUTOSAVE_TIME_IN_SECS));
+
+        let mut server = Self {
             db,
             handler,
             node_listener: Some(node_listener),
             users: HashMap::new(),
             board_data: BoardData::default(),
-        })
+        };
+
+        server.load_latest_board();
+
+        Ok(server)
     }
 
     pub fn run(mut self) {
         let node_listener = self.node_listener.take().unwrap();
-        node_listener.for_each(move |event| match event.network() {
-            NetEvent::Connected(_, _) => unreachable!(),
-            NetEvent::Accepted(_, _) => (),
-            NetEvent::Message(endpoint, input_data) => {
-                let message: DndMessage = bincode::deserialize(input_data).unwrap();
-                match message {
-                    DndMessage::RegisterUser(name) => {
-                        self.register(&name, endpoint);
+        node_listener.for_each(move |event| match event {
+            node::NodeEvent::Network(net_event) => match net_event {
+                NetEvent::Connected(_, _) => unreachable!(),
+                NetEvent::Accepted(_, _) => (),
+                NetEvent::Message(endpoint, input_data) => {
+                    let message: DndMessage = bincode::deserialize(input_data).unwrap();
+                    match message {
+                        DndMessage::RegisterUser(name) => {
+                            self.register(&name, endpoint);
+                            self.broadcast_log_message(
+                                endpoint,
+                                User::server(),
+                                LogMessage::Joined(name),
+                            )
+                        }
+                        DndMessage::UnregisterUser(name) => {
+                            self.unregister(&name);
+                        }
+                        DndMessage::UserNotificationRemoved(_) => todo!(),
+                        DndMessage::Log(user, msg) => {
+                            self.broadcast_log_message(endpoint, user, msg)
+                        }
+                        DndMessage::RetrieveCharacterData(user) => {
+                            match self.get_item_list(&user) {
+                                Ok(list) => {
+                                    let msg = DndMessage::ItemList(list);
+                                    let encoded = bincode::serialize(&msg).unwrap();
+                                    self.handler.network().send(endpoint, &encoded);
+                                }
+                                Err(e) => {
+                                    error!("Failed to get item list for {}: {e:?}", user.name)
+                                }
+                            }
+
+                            match self.get_ability_list(&user) {
+                                Ok(list) => {
+                                    let msg = DndMessage::AbilityList(list);
+                                    let encoded = bincode::serialize(&msg).unwrap();
+                                    self.handler.network().send(endpoint, &encoded);
+                                }
+                                Err(e) => {
+                                    error!("Failed to get ability list for {}: {e:?}", user.name)
+                                }
+                            }
+
+                            match self.get_character_stats(&user) {
+                                Ok(stats) => {
+                                    let msg = DndMessage::CharacterData(stats);
+                                    let encoded = bincode::serialize(&msg).unwrap();
+                                    self.handler.network().send(endpoint, &encoded);
+                                }
+                                Err(e) => {
+                                    error!("Failed to get character stats for {}: {e:?}", user.name)
+                                }
+                            }
+
+                            self.send_initial_board_data(endpoint);
+                        }
+                        DndMessage::UpdateItemCount(user, item_id, new_count) => {
+                            self.update_item_count(user, item_id, new_count)
+                        }
+                        DndMessage::UpdateAbilityCount(user, ability_name, count) => {
+                            self.update_ability_count(user, ability_name, count)
+                        }
+                        DndMessage::UpdateSkills(user, skill_list) => {
+                            self.update_skills(user, skill_list)
+                        }
+                        DndMessage::UpdateHealth(user, curr_health, max_health) => {
+                            self.update_health(user, curr_health, max_health)
+                        }
+                        DndMessage::UpdatePowerSlotCount(user, count) => {
+                            self.update_powerslot_count(user, count.into());
+                        }
+                        DndMessage::BoardMessage(msg) => self.handle_board_message(endpoint, msg),
+                        _ => {
+                            warn!("Unhandled message {message:?}");
+                        }
+                    }
+                }
+                NetEvent::Disconnected(endpoint) => {
+                    let user = self
+                        .users
+                        .iter()
+                        .find(|(_, info)| info.endpoint == endpoint);
+
+                    if let Some((name, _)) = user {
                         self.broadcast_log_message(
                             endpoint,
                             User::server(),
-                            LogMessage::Joined(name),
-                        )
-                    }
-                    DndMessage::UnregisterUser(name) => {
-                        self.unregister(&name);
-                    }
-                    DndMessage::UserNotificationRemoved(_) => todo!(),
-                    DndMessage::Log(user, msg) => self.broadcast_log_message(endpoint, user, msg),
-                    DndMessage::RetrieveCharacterData(user) => {
-                        match self.get_item_list(&user) {
-                            Ok(list) => {
-                                let msg = DndMessage::ItemList(list);
-                                let encoded = bincode::serialize(&msg).unwrap();
-                                self.handler.network().send(endpoint, &encoded);
-                            }
-                            Err(e) => error!("Failed to get item list for {}: {e:?}", user.name),
-                        }
-
-                        match self.get_ability_list(&user) {
-                            Ok(list) => {
-                                let msg = DndMessage::AbilityList(list);
-                                let encoded = bincode::serialize(&msg).unwrap();
-                                self.handler.network().send(endpoint, &encoded);
-                            }
-                            Err(e) => error!("Failed to get ability list for {}: {e:?}", user.name),
-                        }
-
-                        match self.get_character_stats(&user) {
-                            Ok(stats) => {
-                                let msg = DndMessage::CharacterData(stats);
-                                let encoded = bincode::serialize(&msg).unwrap();
-                                self.handler.network().send(endpoint, &encoded);
-                            }
-                            Err(e) => {
-                                error!("Failed to get character stats for {}: {e:?}", user.name)
-                            }
-                        }
-
-                        self.send_initial_board_data(endpoint);
-                    }
-                    DndMessage::UpdateItemCount(user, item_id, new_count) => {
-                        self.update_item_count(user, item_id, new_count)
-                    }
-                    DndMessage::UpdateAbilityCount(user, ability_name, count) => {
-                        self.update_ability_count(user, ability_name, count)
-                    }
-                    DndMessage::UpdateSkills(user, skill_list) => {
-                        self.update_skills(user, skill_list)
-                    }
-                    DndMessage::UpdateHealth(user, curr_health, max_health) => {
-                        self.update_health(user, curr_health, max_health)
-                    }
-                    DndMessage::UpdatePowerSlotCount(user, count) => {
-                        self.update_powerslot_count(user, count.into());
-                    }
-                    DndMessage::BoardMessage(msg) => self.handle_board_message(endpoint, msg),
-                    _ => {
-                        warn!("Unhandled message {message:?}");
+                            LogMessage::Disconnected(name.clone()),
+                        );
+                        self.unregister(&name.clone());
                     }
                 }
-            }
-            NetEvent::Disconnected(endpoint) => {
-                let user = self
-                    .users
-                    .iter()
-                    .find(|(_, info)| info.endpoint == endpoint);
+            },
+            node::NodeEvent::Signal(signal) => match signal {
+                Signal::Autosave => {
+                    info!("Autosaving...");
 
-                if let Some((name, _)) = user {
-                    self.broadcast_log_message(
-                        endpoint,
-                        User::server(),
-                        LogMessage::Disconnected(name.clone()),
+                    match self.save_board() {
+                        Ok(_) => info!("Autosaving complete!"),
+                        Err(e) => info!("Failed to save the board: {e}"),
+                    }
+
+                    self.handler.signals().send_with_timer(
+                        Signal::Autosave,
+                        Duration::from_secs(AUTOSAVE_TIME_IN_SECS),
                     );
-                    self.unregister(&name.clone());
                 }
-            }
+            },
         });
     }
 
@@ -370,7 +415,9 @@ impl DndServer {
                 .db
                 .from("character")
                 .eq("name", &user.name)
-                .update(format!("{{ \"curr_hp\": {curr_health}, \"max_hp\": {max_health}}}"))
+                .update(format!(
+                    "{{ \"curr_hp\": {curr_health}, \"max_hp\": {max_health}}}"
+                ))
                 .execute()
                 .await
                 .unwrap();
@@ -379,7 +426,10 @@ impl DndServer {
 
         info!("{:?}", res);
 
-        info!("{}'s health updated to {curr_health}/{max_health}", &user.name);
+        info!(
+            "{}'s health updated to {curr_health}/{max_health}",
+            &user.name
+        );
     }
 
     fn get_character_stats(&self, user: &User) -> Result<Character, Box<dyn Error>> {
@@ -458,5 +508,58 @@ impl DndServer {
                 self.handler.network().send(user.endpoint, &output_data);
             }
         }
+    }
+
+    fn save_board(&self) -> Result<(), Box<dyn Error>> {
+        let json_board_data = serde_json::to_string(&self.board_data)?;
+
+        futures::executor::block_on(async {
+            self.db
+                .from("board_data")
+                .insert(format!(
+                    "{{\"data\": {json_board_data}, \"tag\": \"autosave\" }}"
+                ))
+                .execute()
+                .await
+        })?;
+
+        Ok(())
+    }
+
+    fn load_latest_board(&mut self) {
+        match futures::executor::block_on(self.get_latest_board_data()) {
+            Ok(data) => {
+                self.board_data = data;
+                info!("Loaded latest board data");
+            }
+            Err(e) => error!("Failed to load latest board: {e}"),
+        };
+    }
+
+    async fn get_latest_board_data(&self) -> Result<BoardData, Box<dyn Error>> {
+        let resp = self
+            .db
+            .from("board_data")
+            .select("data")
+            .order_with_options("created_at", None::<String>, false, false)
+            .execute()
+            .await?;
+
+        #[derive(serde::Deserialize)]
+        struct ServerData {
+            data: BoardData,
+        }
+
+        let data = resp.text().await?;
+
+        info!("Board data {data}");
+
+        let all_saves: Vec<ServerData> = serde_json::from_str(&data)?;
+
+        all_saves
+            .into_iter()
+            .next()
+            .map(|x| x.data)
+            .ok_or_else(|| ServerError::NoBoardSaves.into())
     }
 }
