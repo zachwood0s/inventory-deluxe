@@ -24,6 +24,7 @@ itertools = { workspace = true }
 thiserror = { workspace = true }
 egui_demo_lib = "0.29.1"
 rand = { workspace = true }
+typetag = { workspace = true }
 egui-phosphor = { version = "0.7.3", features = [
   "bold",
   "regular",

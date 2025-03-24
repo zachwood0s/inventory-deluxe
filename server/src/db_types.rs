@@ -42,7 +42,6 @@ pub struct DBAbility {
     max_count: i64,
 }
 
-
 #[derive(serde::Deserialize, Clone)]
 pub struct DBAbilityResponse {
     pub abilities: DBAbility,
@@ -65,3 +64,15 @@ impl Into<common::Ability> for DBAbilityResponse {
     }
 }
 
+pub trait InnerInto<T>: Sized {
+    fn inner_into(self) -> T;
+}
+
+impl<T, U> InnerInto<Vec<U>> for Vec<T>
+where
+    T: Into<U>,
+{
+    fn inner_into(self) -> Vec<U> {
+        self.into_iter().map(|x| x.into()).collect()
+    }
+}

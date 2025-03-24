@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Display};
+
 use emath::{Pos2, Vec2};
 
 pub mod message;
@@ -12,6 +14,12 @@ impl User {
         Self {
             name: String::from("<<SERVER>>"),
         }
+    }
+}
+
+impl Display for User {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.name, f)
     }
 }
 
