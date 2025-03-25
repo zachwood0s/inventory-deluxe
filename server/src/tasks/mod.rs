@@ -12,7 +12,7 @@ pub trait ServerTask {
     fn process(
         self,
         endpoint: Endpoint,
-        server: &mut DndServer,
+        server: &DndServer,
     ) -> impl futures::Future<Output = anyhow::Result<()>> + Send;
 }
 
@@ -43,7 +43,7 @@ where
     T: Response,
     <T as Response>::Action: ResponseAction<T>,
 {
-    async fn process(self, endpoint: Endpoint, server: &mut DndServer) -> anyhow::Result<()> {
+    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
         T::Action::do_action(self, endpoint, server).await
     }
 }
@@ -73,7 +73,7 @@ where
         let resp_msg = t.response(endpoint, server).await?;
         let encoded = bincode::serialize(&resp_msg)?;
 
-        for (_name, user) in server.users.iter() {
+        server.users.foreach(|(_name, user)| {
             if user.endpoint != endpoint {
                 server
                     .handler
@@ -81,8 +81,8 @@ where
                     .send(user.endpoint, &encoded)
                     .to_error()?;
             }
-        }
 
-        Ok(())
+            Ok(())
+        })
     }
 }

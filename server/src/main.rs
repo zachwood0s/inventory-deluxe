@@ -1,11 +1,13 @@
 use std::{
-    collections::HashMap,
+    collections::{hash_map::Values, HashMap},
     error::Error,
     io,
     net::{SocketAddr, ToSocketAddrs},
+    sync::{atomic::AtomicBool, Arc, Mutex, RwLock, RwLockReadGuard},
     time::Duration,
 };
 
+use emath::Pos2;
 use log::{error, info, warn};
 use message_io::{
     network::{Endpoint, NetEvent, ResourceId, SendStatus, Transport},
@@ -21,6 +23,7 @@ use postgrest::Postgrest;
 mod db_types;
 mod tasks;
 use db_types::*;
+use tasks::ServerTask;
 use thiserror::Error;
 
 const AUTOSAVE_TIME_IN_SECS: u64 = 30;
@@ -56,7 +59,8 @@ impl ResponseTextWithError for reqwest::Response {
     }
 }
 
-struct ClientInfo {
+#[derive(Clone)]
+pub struct ClientInfo {
     user_data: User,
     endpoint: Endpoint,
 }
@@ -75,37 +79,121 @@ type PlayerLookup = HashMap<uuid::Uuid, DndPlayerPiece>;
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
 struct BoardData {
     #[serde(skip)]
-    dirty: bool,
-    players: PlayerLookup,
+    dirty: Arc<AtomicBool>,
+    players: Arc<RwLock<PlayerLookup>>,
 }
 
 impl BoardData {
-    pub fn insert_player(&mut self, uuid: uuid::Uuid, player: DndPlayerPiece) {
-        self.dirty = true;
-        self.players.insert(uuid, player);
+    fn mark_dirty(&self) {
+        self.dirty.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
-    pub fn get_player_mut(
-        &mut self,
+    pub fn mark_clean(&self) {
+        self.dirty.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn insert_player(&self, uuid: uuid::Uuid, player: DndPlayerPiece) {
+        let mut players = self.players.write().unwrap();
+        players.insert(uuid, player);
+        self.mark_dirty();
+    }
+
+    pub fn update_player(
+        &self,
         uuid: &uuid::Uuid,
-    ) -> Result<&mut DndPlayerPiece, ServerError> {
-        self.dirty = true;
-        self.players
+        new_player: DndPlayerPiece,
+    ) -> Result<(), ServerError> {
+        let mut players = self.players.write().unwrap();
+        let player = players
             .get_mut(uuid)
-            .ok_or(ServerError::PlayerNotFound(*uuid))
+            .ok_or(ServerError::PlayerNotFound(*uuid))?;
+
+        *player = new_player;
+        self.mark_dirty();
+
+        Ok(())
     }
 
-    pub fn remove_player(&mut self, uuid: &uuid::Uuid) {
-        self.dirty = true;
-        self.players.remove(uuid);
+    pub fn update_player_location(
+        &self,
+        uuid: &uuid::Uuid,
+        new_location: Pos2,
+    ) -> Result<(), ServerError> {
+        let mut players = self.players.write().unwrap();
+        let player = players
+            .get_mut(uuid)
+            .ok_or(ServerError::PlayerNotFound(*uuid))?;
+
+        player.position = new_location;
+        self.mark_dirty();
+
+        Ok(())
+    }
+
+    pub fn remove_player(&self, uuid: &uuid::Uuid) {
+        self.mark_dirty();
+
+        let mut players = self.players.write().unwrap();
+        players.remove(uuid);
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.dirty
+        self.dirty.load(std::sync::atomic::Ordering::SeqCst)
     }
 
-    pub fn mark_clean(&mut self) {
-        self.dirty = true;
+    pub fn get_players_owned(&self) -> HashMap<uuid::Uuid, DndPlayerPiece> {
+        self.players.read().unwrap().clone()
+    }
+
+    pub fn overwrite_board_data(&self, new_data: BoardData) {
+        let mut players = self.players.write().unwrap();
+        *players = new_data.players.read().unwrap().clone();
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct UserData {
+    user_list: Arc<RwLock<HashMap<String, ClientInfo>>>,
+}
+
+impl UserData {
+    pub fn foreach<F>(&self, f: F) -> anyhow::Result<()>
+    where
+        F: Fn((&String, &ClientInfo)) -> anyhow::Result<()>,
+    {
+        let users = self.user_list.read().unwrap();
+
+        for u in users.iter() {
+            f(u)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn has_user(&self, name: &String) -> bool {
+        let users = self.user_list.read().unwrap();
+        users.contains_key(name)
+    }
+
+    pub fn insert_user(&self, name: String, user_data: ClientInfo) {
+        let mut users = self.user_list.write().unwrap();
+        users.insert(name, user_data);
+    }
+
+    pub fn remove_user(&self, name: &String) -> Option<ClientInfo> {
+        let mut users = self.user_list.write().unwrap();
+        users.remove(name)
+    }
+
+    pub fn find_name_for_endpoint(&self, endpoint: Endpoint) -> Option<String> {
+        let users = self.user_list.read().unwrap();
+        let found = users.iter().find(|(_, info)| info.endpoint == endpoint);
+        found.map(|(name, _)| name).cloned()
+    }
+
+    pub fn users_names_owned(&self) -> Vec<String> {
+        let users = self.user_list.read().unwrap();
+        users.keys().cloned().collect()
     }
 }
 
@@ -132,7 +220,7 @@ pub struct DndServer {
     board_data: BoardData,
     self_endpoint: Endpoint,
     node_listener: Option<NodeListener<Signal>>,
-    users: HashMap<String, ClientInfo>,
+    users: UserData,
     db: Postgrest,
 }
 
@@ -162,12 +250,12 @@ impl DndServer {
             .signals()
             .send_with_timer(Signal::Autosave, Duration::from_secs(AUTOSAVE_TIME_IN_SECS));
 
-        let mut server = Self {
+        let server = Self {
             db,
             handler,
             self_endpoint,
             node_listener: Some(node_listener),
-            users: HashMap::new(),
+            users: UserData::default(),
             board_data: BoardData::default(),
         };
 
@@ -202,12 +290,9 @@ impl DndServer {
                     }
                 }
                 NetEvent::Disconnected(endpoint) => {
-                    let user = self
-                        .users
-                        .iter()
-                        .find(|(_, info)| info.endpoint == endpoint);
+                    let user = self.users.find_name_for_endpoint(endpoint);
 
-                    if let Some((name, _)) = user {
+                    if let Some(name) = user {
                         let name = name.clone();
 
                         self.process_task(endpoint, UnRegisterUser { name });
@@ -229,7 +314,7 @@ impl DndServer {
         });
     }
 
-    fn process_task<T: tasks::ServerTask>(&mut self, endpoint: Endpoint, task: T) {
+    fn process_task<T: tasks::ServerTask>(&self, endpoint: Endpoint, task: T) {
         let res = futures::executor::block_on(task.process(endpoint, self));
 
         if let Err(e) = res {
