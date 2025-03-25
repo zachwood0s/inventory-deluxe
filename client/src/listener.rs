@@ -4,7 +4,10 @@ use std::{
     sync::mpsc::{Receiver, Sender},
 };
 
-use common::{message::DndMessage, User};
+use common::{
+    message::{DndMessage, RegisterUser, RetrieveCharacterData},
+    User,
+};
 use message_io::{
     events::EventSender,
     network::{Endpoint, NetEvent, Transport},
@@ -72,13 +75,18 @@ impl DndListener {
                 NetEvent::Connected(endpoint, established) => {
                     if endpoint == self.server_endpoint {
                         if established {
-                            let message = DndMessage::RegisterUser(self.user.name.clone());
+                            let message = DndMessage::RegisterUser(RegisterUser {
+                                name: self.user.name.clone(),
+                            });
                             let output_data = bincode::serialize(&message).unwrap();
                             self.handler
                                 .network()
                                 .send(self.server_endpoint, &output_data);
 
-                            let message = DndMessage::RetrieveCharacterData(self.user.clone());
+                            let message =
+                                DndMessage::RetrieveCharacterData(RetrieveCharacterData {
+                                    user: self.user.clone(),
+                                });
                             let output_data = bincode::serialize(&message).unwrap();
                             self.handler
                                 .network()

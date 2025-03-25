@@ -87,9 +87,9 @@ impl ChatState {
     pub fn process(&mut self, message: &DndMessage) {
         #[allow(clippy::single_match)]
         match message {
-            DndMessage::Log(user, msg) => self
+            DndMessage::Log(Log { user, payload }) => self
                 .log_messages
-                .push(ClientLogMessage::new(user.clone(), msg.clone())),
+                .push(ClientLogMessage::new(user.clone(), payload.clone())),
             DndMessage::ItemList(list) => {
                 println!("Recieved item list {list:?}");
             }
@@ -130,7 +130,10 @@ pub mod commands {
 
                     roll_die(roll)
                         .map(|(die, val)| {
-                            DndMessage::Log(state.owned_user(), LogMessage::Roll(die, val))
+                            DndMessage::Log(Log {
+                                user: state.owned_user(),
+                                payload: LogMessage::Roll(die, val),
+                            })
                         })
                         .map_err(|e| e.into())
                 }
@@ -159,14 +162,22 @@ pub mod commands {
                     match self.parse_cmd(&die, state) {
                         Ok(msg) => tx.send(msg.into()),
                         _ => tx.send(
-                            DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into(),
+                            DndMessage::Log(Log {
+                                user: state.owned_user(),
+                                payload: LogMessage::Chat(self.text),
+                            })
+                            .into(),
                         ),
                     };
                 }
                 None => {}
-                _ => {
-                    tx.send(DndMessage::Log(state.owned_user(), LogMessage::Chat(self.text)).into())
-                }
+                _ => tx.send(
+                    DndMessage::Log(Log {
+                        user: state.owned_user(),
+                        payload: LogMessage::Chat(self.text),
+                    })
+                    .into(),
+                ),
             }
         }
     }

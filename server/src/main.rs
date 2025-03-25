@@ -8,12 +8,12 @@ use std::{
 
 use log::{error, info, warn};
 use message_io::{
-    network::{Endpoint, NetEvent, SendStatus, Transport},
+    network::{Endpoint, NetEvent, ResourceId, SendStatus, Transport},
     node::{self, NodeHandler, NodeListener},
 };
 
 use common::{
-    message::{BoardMessage, DndMessage, LogMessage},
+    message::{BoardMessage, DndMessage, Log, LogMessage, UnRegisterUser},
     Ability, Character, DndPlayerPiece, Item, User,
 };
 use postgrest::Postgrest;
@@ -70,10 +70,13 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
+type PlayerLookup = HashMap<uuid::Uuid, DndPlayerPiece>;
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
 struct BoardData {
+    #[serde(skip)]
     dirty: bool,
-    players: HashMap<uuid::Uuid, DndPlayerPiece>,
+    players: PlayerLookup,
 }
 
 impl BoardData {
@@ -118,11 +121,16 @@ enum ServerError {
     PlayerNotFound(uuid::Uuid),
     #[error("Failed to send server response: {0:?}")]
     ResponseError(SendStatus),
+    #[error("User already exists: {0}")]
+    UserAlreadyExists(String),
+    #[error("User cannot be found: {0}")]
+    UserNotFound(String),
 }
 
 pub struct DndServer {
     handler: NodeHandler<Signal>,
     board_data: BoardData,
+    self_endpoint: Endpoint,
     node_listener: Option<NodeListener<Signal>>,
     users: HashMap<String, ClientInfo>,
     db: Postgrest,
@@ -145,6 +153,11 @@ impl DndServer {
 
         info!("Server running at {}", addr);
 
+        // Fake endpoint that doesn't really matter
+        // Magic number matches bit 7 & 2 set because we need
+        // non-connection oriented (2) and local (7)
+        let self_endpoint = Endpoint::from_listener(130.into(), ws_addr);
+
         handler
             .signals()
             .send_with_timer(Signal::Autosave, Duration::from_secs(AUTOSAVE_TIME_IN_SECS));
@@ -152,15 +165,13 @@ impl DndServer {
         let mut server = Self {
             db,
             handler,
+            self_endpoint,
             node_listener: Some(node_listener),
             users: HashMap::new(),
             board_data: BoardData::default(),
         };
 
-        server.process_task(
-            Endpoint::from_listener(ws_id, ws_addr),
-            tasks::board::GetLatestBoardData,
-        );
+        server.process_task(server.self_endpoint, tasks::board::GetLatestBoardData);
 
         Ok(server)
     }
@@ -174,51 +185,17 @@ impl DndServer {
                 NetEvent::Message(endpoint, input_data) => {
                     let message: DndMessage = bincode::deserialize(input_data).unwrap();
                     match message {
-                        DndMessage::RegisterUser(name) => {
-                            self.register(&name, endpoint);
-                            self.process_task(
-                                endpoint,
-                                tasks::log::BroadcastLogMsg::new(
-                                    User::server(),
-                                    LogMessage::Joined(name),
-                                ),
-                            );
-                        }
-                        DndMessage::UnregisterUser(name) => {
-                            self.unregister(&name);
-                        }
+                        DndMessage::RegisterUser(msg) => self.process_task(endpoint, msg),
+                        DndMessage::UnregisterUser(msg) => self.process_task(endpoint, msg),
                         DndMessage::UserNotificationRemoved(_) => todo!(),
-                        DndMessage::Log(user, msg) => {
-                            self.process_task(
-                                endpoint,
-                                tasks::log::BroadcastLogMsg::new(user, msg),
-                            );
-                        }
-                        DndMessage::RetrieveCharacterData(user) => {
-                            self.process_task(endpoint, tasks::db::GetItemList(&user));
-                            self.process_task(endpoint, tasks::db::GetAbilityList(&user));
-                            self.process_task(endpoint, tasks::db::GetCharacterStats(&user));
-                            self.process_task(endpoint, tasks::board::SendInitialBoardData);
-                        }
-                        DndMessage::UpdateItemCount(user, item_id, new_count) => self.process_task(
-                            endpoint,
-                            tasks::db::UpdateItemCount::new(&user, item_id, new_count),
-                        ),
-                        DndMessage::UpdateAbilityCount(user, ability_name, count) => self
-                            .process_task(
-                                endpoint,
-                                tasks::db::UpdateAbilityCount::new(&user, &ability_name, count),
-                            ),
-                        DndMessage::UpdateSkills(user, skill_list) => {
-                            self.update_skills(user, skill_list)
-                        }
-                        DndMessage::UpdateHealth(user, curr_health, max_health) => {
-                            self.update_health(user, curr_health, max_health)
-                        }
-                        DndMessage::UpdatePowerSlotCount(user, count) => {
-                            self.update_powerslot_count(user, count.into());
-                        }
+                        DndMessage::RetrieveCharacterData(msg) => self.process_task(endpoint, msg),
+                        DndMessage::UpdateItemCount(msg) => self.process_task(endpoint, msg),
+                        DndMessage::UpdateAbilityCount(msg) => self.process_task(endpoint, msg),
+                        DndMessage::UpdateSkills(msg) => self.process_task(endpoint, msg),
+                        DndMessage::UpdateHealth(msg) => self.process_task(endpoint, msg),
+                        DndMessage::UpdatePowerSlotCount(msg) => self.process_task(endpoint, msg),
                         DndMessage::BoardMessage(msg) => self.process_task(endpoint, msg),
+                        DndMessage::Log(msg) => self.process_task(endpoint, msg),
                         _ => {
                             warn!("Unhandled message {message:?}");
                         }
@@ -233,14 +210,7 @@ impl DndServer {
                     if let Some((name, _)) = user {
                         let name = name.clone();
 
-                        self.unregister(&name);
-                        self.process_task(
-                            endpoint,
-                            tasks::log::BroadcastLogMsg::new(
-                                User::server(),
-                                LogMessage::Disconnected(name),
-                            ),
-                        );
+                        self.process_task(endpoint, UnRegisterUser { name });
                     }
                 }
             },
@@ -248,10 +218,7 @@ impl DndServer {
                 Signal::Autosave => {
                     info!("Autosaving...");
 
-                    match self.save_board() {
-                        Ok(_) => info!("Autosaving complete!"),
-                        Err(e) => info!("Failed to save the board: {e}"),
-                    }
+                    self.process_task(self.self_endpoint, tasks::board::SaveBoardData);
 
                     self.handler.signals().send_with_timer(
                         Signal::Autosave,
@@ -268,158 +235,5 @@ impl DndServer {
         if let Err(e) = res {
             error!("Error handling server task: {e}");
         }
-    }
-
-    fn register(&mut self, name: &str, endpoint: Endpoint) {
-        if !self.users.contains_key(name) {
-            let list = self.users.keys().cloned().collect();
-
-            let message = DndMessage::UserList(list);
-            let output_data = bincode::serialize(&message).unwrap();
-            self.handler.network().send(endpoint, &output_data);
-
-            let character_list = self.get_character_list().unwrap();
-            let message = DndMessage::CharacterList(character_list);
-            let output_data = bincode::serialize(&message).unwrap();
-            self.handler.network().send(endpoint, &output_data);
-
-            // Notify other users about this new user
-            let message = DndMessage::UserNotificationAdded(name.to_string());
-            let output_data = bincode::serialize(&message).unwrap();
-            for (_name, user) in self.users.iter() {
-                self.handler.network().send(user.endpoint, &output_data);
-            }
-
-            self.users.insert(
-                name.to_string(),
-                ClientInfo {
-                    user_data: User {
-                        name: name.to_string(),
-                    },
-                    endpoint,
-                },
-            );
-
-            info!("Added user '{}'", name);
-        } else {
-            info!(
-                "User with name '{}' already exists, whart are you doing??",
-                name
-            );
-        }
-    }
-
-    fn unregister(&mut self, name: &str) {
-        if let Some(info) = self.users.remove(name) {
-            let message = DndMessage::UserNotificationRemoved(name.to_string());
-            let output_data = bincode::serialize(&message).unwrap();
-            for (_name, user) in self.users.iter() {
-                self.handler.network().send(user.endpoint, &output_data);
-            }
-
-            info!("Removed participant '{}'", name);
-        } else {
-            error!("Cannot unregister a user '{}' who doesn't exist??", name);
-        }
-    }
-
-    fn get_character_list(&self) -> Result<Vec<String>, Box<dyn Error>> {
-        info!("Retrieving character list");
-        let res = futures::executor::block_on(async {
-            let resp = self
-                .db
-                .from("character")
-                .select("name")
-                .execute()
-                .await
-                .unwrap();
-            resp.text().await
-        })?;
-
-        info!("{}", res);
-
-        #[derive(serde::Deserialize)]
-        struct Name {
-            name: String,
-        }
-
-        let names: Vec<Name> = serde_json::from_str(&res)?;
-        Ok(names.into_iter().map(|x| x.name).collect())
-    }
-
-    fn update_powerslot_count(&self, user: User, new_count: i64) {
-        futures::executor::block_on(async {
-            self.db
-                .from("characters")
-                .eq("player", &user.name)
-                .update(format!("{{ \"power_slots\": {} }}", new_count))
-                .execute()
-                .await
-                .unwrap();
-        });
-
-        info!("{}'s ability uses updated to {}", user.name, new_count);
-    }
-
-    fn update_skills(&self, user: User, skill_list: Vec<String>) {
-        let Ok(skill_vec) = serde_json::to_string(&skill_list) else {
-            error!(">:(");
-            return;
-        };
-
-        let res = futures::executor::block_on(async {
-            let resp = self
-                .db
-                .from("character")
-                .eq("name", &user.name)
-                .update(format!("{{ \"skills\": {} }}", skill_vec))
-                .execute()
-                .await
-                .unwrap();
-            resp.text().await
-        });
-
-        info!("{:?}", res);
-
-        info!("{}'s skills updated to {}", &user.name, skill_vec);
-    }
-
-    fn update_health(&self, user: User, curr_health: i16, max_health: i16) {
-        let res = futures::executor::block_on(async {
-            let resp = self
-                .db
-                .from("character")
-                .eq("name", &user.name)
-                .update(format!(
-                    "{{ \"curr_hp\": {curr_health}, \"max_hp\": {max_health}}}"
-                ))
-                .execute()
-                .await
-                .unwrap();
-            resp.text().await
-        });
-
-        info!("{:?}", res);
-
-        info!(
-            "{}'s health updated to {curr_health}/{max_health}",
-            &user.name
-        );
-    }
-
-    fn save_board(&self) -> Result<(), Box<dyn Error>> {
-        let json_board_data = serde_json::to_string(&self.board_data)?;
-
-        futures::executor::block_on(async {
-            self.db
-                .from("board_data")
-                .insert(format!(
-                    "{{\"data\": {json_board_data}, \"tag\": \"autosave\" }}"
-                ))
-                .execute()
-                .await
-        })?;
-
-        Ok(())
     }
 }

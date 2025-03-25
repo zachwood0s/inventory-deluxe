@@ -6,6 +6,12 @@ use uuid::Uuid;
 use crate::{Ability, Character, DndPlayerPiece, Item, User};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct Log {
+    pub user: User,
+    pub payload: LogMessage,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum LogMessage {
     Chat(String),
     UseItem(String, u32),
@@ -24,22 +30,69 @@ pub enum BoardMessage {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct RegisterUser {
+    pub name: String,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct UnRegisterUser {
+    pub name: String,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct RetrieveCharacterData {
+    pub user: User,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct UpdateAbilityCount {
+    pub user: User,
+    pub ability_name: String,
+    pub new_count: i64,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct UpdateItemCount {
+    pub user: User,
+    pub item_id: i64,
+    pub new_count: u32,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct UpdatePowerSlotCount {
+    pub user: User,
+    pub new_count: i16,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct UpdateSkills {
+    pub user: User,
+    pub skills: Vec<String>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct UpdateHealth {
+    pub user: User,
+    pub cur_health: i16,
+    pub max_health: i16,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
 pub enum DndMessage {
     // Bidirectional
-    Log(User, LogMessage),
+    Log(Log),
 
     // From Client
-    RegisterUser(String),
-    UnregisterUser(String),
-    RetrieveCharacterData(User),
-    /// (User, id, new_count)
-    UpdateItemCount(User, i64, u32),
-    UpdateAbilityCount(User, String, i64),
-    UpdatePowerSlotCount(User, i16),
+    RegisterUser(RegisterUser),
+    UnregisterUser(UnRegisterUser),
+    RetrieveCharacterData(RetrieveCharacterData),
+    UpdateItemCount(UpdateItemCount),
+    UpdateAbilityCount(UpdateAbilityCount),
+    UpdatePowerSlotCount(UpdatePowerSlotCount),
 
     // Character
-    UpdateSkills(User, Vec<String>),
-    UpdateHealth(User, i16, i16),
+    UpdateSkills(UpdateSkills),
+    UpdateHealth(UpdateHealth),
 
     // Board
     BoardMessage(BoardMessage),

@@ -2,7 +2,7 @@ use common::message::{BoardMessage, DndMessage};
 use log::info;
 use message_io::network::Endpoint;
 
-use crate::{BoardData, ResponseTextWithError, ServerError, ToError};
+use crate::{BoardData, PlayerLookup, ResponseTextWithError, ServerError, ToError};
 
 use super::{Broadcast, Response, ServerTask};
 

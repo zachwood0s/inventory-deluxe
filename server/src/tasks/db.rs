@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{message::DndMessage, User};
+use common::{message::*, User};
 use log::{debug, info};
 use message_io::network::Endpoint;
 
@@ -7,6 +7,35 @@ use crate::{DBAbilityResponse, DBItemResponse, InnerInto, ResponseTextWithError,
 
 use super::{Response, ReturnToSender, ServerTask};
 
+/// Retrieves all of the available characters in the DB
+pub struct GetCharacterList;
+impl Response for GetCharacterList {
+    type Action = ReturnToSender;
+    type ResponseData = DndMessage;
+
+    async fn response(
+        self,
+        _: Endpoint,
+        server: &crate::DndServer,
+    ) -> anyhow::Result<Self::ResponseData> {
+        info!("Retrieving character list");
+        let resp = server.db.from("character").select("name").execute().await?;
+        let chr_list = resp.text_with_error().await?;
+
+        #[derive(serde::Deserialize)]
+        struct Name {
+            name: String,
+        }
+
+        let names: Vec<Name> = serde_json::from_str(&chr_list)?;
+        Ok(DndMessage::CharacterList(
+            names.into_iter().map(|x| x.name).collect(),
+        ))
+    }
+}
+
+/// Retrieves the item list for a given User and
+/// sends them back to the endpoint which requested the list
 pub struct GetItemList<'a>(pub &'a User);
 impl Response for GetItemList<'_> {
     type Action = ReturnToSender;
@@ -40,6 +69,8 @@ impl Response for GetItemList<'_> {
     }
 }
 
+/// Retrieves the ability list for a given User and
+/// sends them back to the endpoint which requested the list
 pub struct GetAbilityList<'a>(pub &'a User);
 impl Response for GetAbilityList<'_> {
     type Action = ReturnToSender;
@@ -72,6 +103,8 @@ impl Response for GetAbilityList<'_> {
     }
 }
 
+/// Retrieves the character stats for a given User and
+/// sends them back to the endpoint which requested the stats
 pub struct GetCharacterStats<'a>(pub &'a User);
 impl Response for GetCharacterStats<'_> {
     type Action = ReturnToSender;
@@ -103,23 +136,9 @@ impl Response for GetCharacterStats<'_> {
     }
 }
 
-pub struct UpdateItemCount<'a> {
-    user: &'a User,
-    item_id: i64,
-    new_count: u32,
-}
-
-impl<'a> UpdateItemCount<'a> {
-    pub fn new(user: &'a User, item_id: i64, new_count: u32) -> Self {
-        Self {
-            user,
-            item_id,
-            new_count,
-        }
-    }
-}
-
-impl ServerTask for UpdateItemCount<'_> {
+/// Updates the number of items of the specified type the specified user
+/// has in their inventory
+impl ServerTask for UpdateItemCount {
     async fn process(self, _: Endpoint, server: &mut crate::DndServer) -> anyhow::Result<()> {
         let Self {
             user,
@@ -147,23 +166,8 @@ impl ServerTask for UpdateItemCount<'_> {
     }
 }
 
-pub struct UpdateAbilityCount<'a> {
-    user: &'a User,
-    ability_name: &'a String,
-    new_count: i64,
-}
-
-impl<'a> UpdateAbilityCount<'a> {
-    pub fn new(user: &'a User, ability_name: &'a String, new_count: i64) -> Self {
-        Self {
-            user,
-            ability_name,
-            new_count,
-        }
-    }
-}
-
-impl ServerTask for UpdateAbilityCount<'_> {
+/// Updates the remaining number of usages a user has of the specified ability
+impl ServerTask for UpdateAbilityCount {
     async fn process(self, _: Endpoint, server: &mut crate::DndServer) -> anyhow::Result<()> {
         let Self {
             user,
@@ -181,6 +185,74 @@ impl ServerTask for UpdateAbilityCount<'_> {
             .await?;
 
         info!("{}'s ability uses updated to {}", user.name, new_count);
+
+        Ok(())
+    }
+}
+
+/// Updates a user's remaning power slot count
+impl ServerTask for UpdatePowerSlotCount {
+    async fn process(self, _: Endpoint, server: &mut crate::DndServer) -> anyhow::Result<()> {
+        let Self { user, new_count } = self;
+
+        server
+            .db
+            .from("characters")
+            .eq("player", &user.name)
+            .update(format!("{{ \"power_slots\": {} }}", new_count))
+            .execute()
+            .await?
+            .to_error()?;
+
+        Ok(())
+    }
+}
+
+/// Updates a user's skills
+impl ServerTask for UpdateSkills {
+    async fn process(self, _: Endpoint, server: &mut crate::DndServer) -> anyhow::Result<()> {
+        let Self { user, skills } = self;
+        let skill_vec = serde_json::to_string(&skills)?;
+
+        server
+            .db
+            .from("character")
+            .eq("name", &user.name)
+            .update(format!("{{ \"skills\": {} }}", skill_vec))
+            .execute()
+            .await?
+            .to_error()?;
+
+        info!("{}'s skills updated to {}", &user.name, skill_vec);
+
+        Ok(())
+    }
+}
+
+/// Updates a user's hp stats
+impl ServerTask for UpdateHealth {
+    async fn process(self, _: Endpoint, server: &mut crate::DndServer) -> anyhow::Result<()> {
+        let Self {
+            user,
+            cur_health,
+            max_health,
+        } = self;
+
+        server
+            .db
+            .from("character")
+            .eq("name", &user.name)
+            .update(format!(
+                "{{ \"curr_hp\": {cur_health}, \"max_hp\": {max_health}}}"
+            ))
+            .execute()
+            .await?
+            .to_error()?;
+
+        info!(
+            "{}'s health updated to {cur_health}/{max_health}",
+            &user.name
+        );
 
         Ok(())
     }

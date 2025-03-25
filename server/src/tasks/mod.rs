@@ -6,6 +6,7 @@ use crate::{DndServer, ToError};
 pub mod board;
 pub mod db;
 pub mod log;
+pub mod server;
 
 pub trait ServerTask {
     fn process(

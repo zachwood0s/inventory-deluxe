@@ -34,20 +34,20 @@ pub mod commands {
             if self.broadcast {
                 // Update item count in DB
                 tx.send(
-                    DndMessage::UpdateAbilityCount(
-                        user.clone(),
-                        ability.name.clone(),
-                        ability.uses,
-                    )
+                    DndMessage::UpdateAbilityCount(UpdateAbilityCount {
+                        user: user.clone(),
+                        ability_name: ability.name.clone(),
+                        new_count: ability.uses,
+                    })
                     .into(),
                 );
 
                 // Send Log Message
                 tx.send(
-                    DndMessage::Log(
+                    DndMessage::Log(Log {
                         user,
-                        LogMessage::SetAbilityCount(ability.name.clone(), self.count),
-                    )
+                        payload: LogMessage::SetAbilityCount(ability.name.clone(), self.count),
+                    })
                     .into(),
                 );
             }
@@ -72,32 +72,37 @@ pub mod commands {
 
             *power_slots = self.count;
 
-                // Update item count in DB
-                tx.send(
-                    DndMessage::UpdatePowerSlotCount(
-                        user.clone(),
-                        *power_slots,
-                    )
-                    .into(),
-                );
+            // Update item count in DB
+            tx.send(
+                DndMessage::UpdatePowerSlotCount(UpdatePowerSlotCount {
+                    user,
+                    new_count: *power_slots,
+                })
+                .into(),
+            );
 
-                /*
-                // Send Log Message
-                tx.send(
-                    DndMessage::Log(
-                        user,
-                        LogMessage::SetAbilityCount(ability.name.clone(), self.count),
-                    )
-                    .into(),
-                );
-                */
+            /*
+            // Send Log Message
+            tx.send(
+                DndMessage::Log(
+                    user,
+                    LogMessage::SetAbilityCount(ability.name.clone(), self.count),
+                )
+                .into(),
+            );
+            */
         }
     }
     pub struct RefreshCharacter;
 
     impl Command for RefreshCharacter {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            tx.send(DndMessage::RetrieveCharacterData(state.owned_user()).into())
+            tx.send(
+                DndMessage::RetrieveCharacterData(RetrieveCharacterData {
+                    user: state.owned_user(),
+                })
+                .into(),
+            )
         }
     }
 }

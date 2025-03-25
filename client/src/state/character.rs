@@ -54,11 +54,22 @@ pub mod commands {
             item.count = item.count.saturating_sub(self.count);
 
             // Update item count in DB
-            tx.send(DndMessage::UpdateItemCount(user.clone(), item.id, item.count).into());
+            tx.send(
+                DndMessage::UpdateItemCount(UpdateItemCount {
+                    user: user.clone(),
+                    item_id: item.id,
+                    new_count: item.count,
+                })
+                .into(),
+            );
 
             // Send Log Message
             tx.send(
-                DndMessage::Log(user, LogMessage::UseItem(item.name.clone(), self.count)).into(),
+                DndMessage::Log(Log {
+                    user,
+                    payload: LogMessage::UseItem(item.name.clone(), self.count),
+                })
+                .into(),
             );
 
             // Remove immediately from display if no more count.
@@ -73,7 +84,12 @@ pub mod commands {
 
     impl Command for RefreshCharacter {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            tx.send(DndMessage::RetrieveCharacterData(state.owned_user()).into())
+            tx.send(
+                DndMessage::RetrieveCharacterData(RetrieveCharacterData {
+                    user: state.owned_user(),
+                })
+                .into(),
+            )
         }
     }
 
@@ -93,15 +109,19 @@ pub mod commands {
 
             let skills = &mut state.character.stats.skills;
 
-
             if skills.contains(&self.skill_name) {
                 skills.retain(|x| x != &self.skill_name);
-            }
-            else {
+            } else {
                 skills.push(self.skill_name);
             }
 
-            tx.send(DndMessage::UpdateSkills(user.clone(), skills.clone()).into());
+            tx.send(
+                DndMessage::UpdateSkills(UpdateSkills {
+                    user,
+                    skills: skills.clone(),
+                })
+                .into(),
+            );
         }
     }
 
@@ -125,8 +145,14 @@ pub mod commands {
             stats.max_hp = self.max_hp;
             stats.curr_hp = self.curr_hp;
 
-            tx.send(DndMessage::UpdateHealth(user.clone(), stats.curr_hp.clone(), stats.max_hp.clone()).into());
+            tx.send(
+                DndMessage::UpdateHealth(UpdateHealth {
+                    user,
+                    cur_health: stats.curr_hp,
+                    max_health: stats.max_hp,
+                })
+                .into(),
+            );
         }
     }
-
 }

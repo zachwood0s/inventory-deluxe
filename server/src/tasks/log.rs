@@ -1,23 +1,12 @@
 use common::{
-    message::{DndMessage, LogMessage},
+    message::{DndMessage, Log, LogMessage},
     User,
 };
 use log::debug;
 
 use super::{Broadcast, Response};
 
-pub struct BroadcastLogMsg {
-    sender: User,
-    msg: LogMessage,
-}
-
-impl BroadcastLogMsg {
-    pub fn new(sender: User, msg: LogMessage) -> Self {
-        Self { sender, msg }
-    }
-}
-
-impl Response for BroadcastLogMsg {
+impl Response for Log {
     type Action = Broadcast;
     type ResponseData = DndMessage;
 
@@ -26,9 +15,7 @@ impl Response for BroadcastLogMsg {
         _: message_io::network::Endpoint,
         _: &crate::DndServer,
     ) -> anyhow::Result<Self::ResponseData> {
-        let Self { sender, msg } = self;
-
         debug!("Broadcasting log message!");
-        Ok(DndMessage::Log(sender, msg))
+        Ok(DndMessage::Log(self))
     }
 }
