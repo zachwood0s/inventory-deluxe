@@ -2,7 +2,7 @@ use common::message::{BoardMessage, DndMessage};
 use log::info;
 use message_io::network::Endpoint;
 
-use crate::{BoardData, PlayerLookup, ResponseTextWithError, ServerError, ToError};
+use crate::{BoardData, DndServer, PlayerLookup, ResponseTextWithError, ServerError, ToError};
 
 use super::{Broadcast, Response, ServerTask};
 
@@ -22,18 +22,18 @@ impl Response for BroadcastBoardMessage {
 }
 
 impl ServerTask for BoardMessage {
-    async fn process(self, from: Endpoint, server: &mut crate::DndServer) -> anyhow::Result<()> {
+    async fn process(self, from: Endpoint, server: &DndServer) -> anyhow::Result<()> {
         match self.clone() {
             BoardMessage::AddPlayerPiece(uuid, player) => {
                 server.board_data.insert_player(uuid, player);
             }
             BoardMessage::UpdatePlayerPiece(uuid, new_player) => {
-                let player = server.board_data.get_player_mut(&uuid)?;
-                *player = new_player;
+                server.board_data.update_player(&uuid, new_player)?;
             }
             BoardMessage::UpdatePlayerLocation(uuid, new_location) => {
-                let player = server.board_data.get_player_mut(&uuid)?;
-                player.position = new_location;
+                server
+                    .board_data
+                    .update_player_location(&uuid, new_location)?;
             }
             BoardMessage::DeletePlayerPiece(uuid) => {
                 server.board_data.remove_player(&uuid);
@@ -46,14 +46,9 @@ impl ServerTask for BoardMessage {
 
 pub struct SendInitialBoardData;
 impl ServerTask for SendInitialBoardData {
-    async fn process(
-        self,
-        endpoint: Endpoint,
-        server: &mut crate::DndServer,
-    ) -> anyhow::Result<()> {
-        for (uuid, player) in server.board_data.players.iter() {
-            let message =
-                DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(*uuid, player.clone()));
+    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+        for (uuid, player) in server.board_data.get_players_owned().into_iter() {
+            let message = DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(uuid, player));
 
             let output_data = bincode::serialize(&message)?;
 
@@ -70,7 +65,7 @@ impl ServerTask for SendInitialBoardData {
 
 pub struct GetLatestBoardData;
 impl ServerTask for GetLatestBoardData {
-    async fn process(self, _: Endpoint, server: &mut crate::DndServer) -> anyhow::Result<()> {
+    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
         let resp = server
             .db
             .from("board_data")
@@ -95,7 +90,7 @@ impl ServerTask for GetLatestBoardData {
             .map(|x| x.data)
             .ok_or(ServerError::NoBoardSaves)?;
 
-        server.board_data = board_data;
+        server.board_data.overwrite_board_data(board_data);
 
         Ok(())
     }
@@ -103,7 +98,7 @@ impl ServerTask for GetLatestBoardData {
 
 pub struct SaveBoardData;
 impl ServerTask for SaveBoardData {
-    async fn process(self, _: Endpoint, server: &mut crate::DndServer) -> anyhow::Result<()> {
+    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
         if !server.board_data.is_dirty() {
             info!("Skipping autosave, no board modifications to save");
             return Ok(());
