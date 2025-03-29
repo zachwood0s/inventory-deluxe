@@ -1,10 +1,78 @@
-use common::message::{BoardMessage, DndMessage};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicBool, Arc, RwLock},
+};
+
+use common::{
+    message::{BoardMessage, DndMessage},
+    DndPlayerPiece,
+};
+use emath::Pos2;
 use log::info;
 use message_io::network::Endpoint;
 
-use crate::{BoardData, DndServer, PlayerLookup, ResponseTextWithError, ServerError, ToError};
+use crate::{DndServer, PlayerLookup, ResponseTextWithError, ServerError, ToError};
 
 use super::{Broadcast, Response, ServerTask};
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
+pub struct BoardData {
+    #[serde(skip)]
+    dirty: Arc<AtomicBool>,
+    players: Arc<RwLock<PlayerLookup>>,
+}
+
+impl BoardData {
+    fn process_message(&self, board_message: BoardMessage) -> Result<(), ServerError> {
+        self.mark_dirty();
+        let mut players = self.players.write().unwrap();
+
+        match board_message {
+            BoardMessage::AddPlayerPiece(uuid, player) => {
+                players.insert(uuid, player);
+            }
+            BoardMessage::UpdatePlayerPiece(uuid, new_player) => {
+                let player = players
+                    .get_mut(&uuid)
+                    .ok_or(ServerError::PlayerNotFound(uuid))?;
+
+                *player = new_player;
+            }
+            BoardMessage::UpdatePlayerLocation(uuid, new_location) => {
+                let player = players
+                    .get_mut(&uuid)
+                    .ok_or(ServerError::PlayerNotFound(uuid))?;
+
+                player.position = new_location;
+            }
+            BoardMessage::DeletePlayerPiece(uuid) => {
+                players.remove(&uuid);
+            }
+        }
+
+        Ok(())
+    }
+    fn mark_dirty(&self) {
+        self.dirty.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn mark_clean(&self) {
+        self.dirty.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    pub fn get_players_owned(&self) -> HashMap<uuid::Uuid, DndPlayerPiece> {
+        self.players.read().unwrap().clone()
+    }
+
+    pub fn overwrite_board_data(&self, new_data: BoardData) {
+        let mut players = self.players.write().unwrap();
+        *players = new_data.players.read().unwrap().clone();
+    }
+}
 
 pub struct BroadcastBoardMessage(BoardMessage);
 impl Response for BroadcastBoardMessage {
@@ -23,22 +91,7 @@ impl Response for BroadcastBoardMessage {
 
 impl ServerTask for BoardMessage {
     async fn process(self, from: Endpoint, server: &DndServer) -> anyhow::Result<()> {
-        match self.clone() {
-            BoardMessage::AddPlayerPiece(uuid, player) => {
-                server.board_data.insert_player(uuid, player);
-            }
-            BoardMessage::UpdatePlayerPiece(uuid, new_player) => {
-                server.board_data.update_player(&uuid, new_player)?;
-            }
-            BoardMessage::UpdatePlayerLocation(uuid, new_location) => {
-                server
-                    .board_data
-                    .update_player_location(&uuid, new_location)?;
-            }
-            BoardMessage::DeletePlayerPiece(uuid) => {
-                server.board_data.remove_player(&uuid);
-            }
-        }
+        server.board_data.process_message(self.clone())?;
 
         BroadcastBoardMessage(self).process(from, server).await
     }
