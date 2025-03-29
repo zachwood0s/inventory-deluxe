@@ -110,6 +110,11 @@ impl BoardState {
             BoardMessage::DeletePlayerPiece(uuid) => {
                 self.players.remove(uuid);
             }
+            BoardMessage::ClearBoard => {
+                self.players.clear();
+                self.dragged_id = None;
+                self.selected_id = None;
+            }
         }
     }
 

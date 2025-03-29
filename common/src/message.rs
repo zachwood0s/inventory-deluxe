@@ -16,6 +16,7 @@ pub enum LogMessage {
     Chat(String),
     UseItem(String, u32),
     SetAbilityCount(String, i64),
+    Server(String),
     Joined(String),
     Disconnected(String),
     Roll(u32, u32),
@@ -27,6 +28,17 @@ pub enum BoardMessage {
     UpdatePlayerPiece(Uuid, DndPlayerPiece),
     UpdatePlayerLocation(Uuid, Pos2),
     DeletePlayerPiece(Uuid),
+    ClearBoard,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct SaveBoard {
+    pub tag: Option<String>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct LoadBoard {
+    pub tag: String,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
@@ -96,6 +108,8 @@ pub enum DndMessage {
 
     // Board
     BoardMessage(BoardMessage),
+    SaveBoard(SaveBoard),
+    LoadBoard(LoadBoard),
 
     // From DndServer
     UserList(Vec<String>),
