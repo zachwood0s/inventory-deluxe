@@ -1,12 +1,8 @@
-use std::sync::mpsc::Receiver;
-
-use common::{message::DndMessage, User};
-use egui::{Color32, ScrollArea, TextEdit, Widget};
-use message_io::events::EventSender;
+use egui::{ScrollArea, TextEdit, Widget};
 
 use crate::{
-    listener::{CommandQueue, Signal},
-    state::{chat::commands::ChatCommand, DndState},
+    listener::CommandQueue,
+    state::{chat::ChatCommand, DndState},
 };
 
 use super::DndTabImpl;

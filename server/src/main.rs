@@ -15,7 +15,7 @@ use message_io::{
 };
 
 use common::{
-    message::{BoardMessage, DndMessage, Log, LogMessage, UnRegisterUser},
+    message::{BoardMessage, DndMessage, Log, LogMessage, SaveBoard, UnRegisterUser},
     Ability, Character, DndPlayerPiece, Item, User,
 };
 use postgrest::Postgrest;
@@ -224,6 +224,8 @@ impl DndServer {
                                     server.process_task(endpoint, msg)
                                 }
                                 DndMessage::BoardMessage(msg) => server.process_task(endpoint, msg),
+                                DndMessage::SaveBoard(msg) => server.process_task(endpoint, msg),
+                                DndMessage::LoadBoard(msg) => server.process_task(endpoint, msg),
                                 DndMessage::Log(msg) => server.process_task(endpoint, msg),
                                 _ => {
                                     warn!("Unhandled message {message:?}");
@@ -269,7 +271,7 @@ async fn autosave_task(server: Arc<DndServer>) {
 
             info!("Autosaving...");
             server
-                .process_task_async(server.self_endpoint, tasks::board::SaveBoardData)
+                .process_task_async(server.self_endpoint, SaveBoard { tag: None })
                 .await;
 
             info!("Autosave complete...");

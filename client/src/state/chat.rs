@@ -1,5 +1,7 @@
 use crate::prelude::*;
+use comand_parser::{ChatCommandParser, ToDndMessge};
 use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
+use itertools::Itertools;
 
 pub struct ClientLogMessage {
     pub user: User,
@@ -47,6 +49,9 @@ impl ClientLogMessage {
             }
             LogMessage::Disconnected(discon_user) => {
                 ui.colored_label(Color32::DARK_GRAY, format!("{} disconnected", discon_user));
+            }
+            LogMessage::Server(msg) => {
+                ui.colored_label(Color32::DARK_GRAY, msg);
             }
             LogMessage::SetAbilityCount(ability, count) => {
                 let style = Style::default();
@@ -98,112 +103,254 @@ impl ChatState {
     }
 }
 
-pub mod commands {
+pub struct ChatCommand {
+    text: String,
+}
 
-    use itertools::Itertools;
-    use rand::Rng;
-    use thiserror::Error;
-
-    use crate::prelude::*;
-
-    pub struct ChatCommand {
-        text: String,
+impl ChatCommand {
+    pub fn new(text: String) -> Self {
+        Self { text }
     }
+}
 
-    impl ChatCommand {
-        pub fn new(text: String) -> Self {
-            Self { text }
-        }
+impl Command for ChatCommand {
+    fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+        let parts = self.text.split(" ").collect_vec();
 
-        fn parse_cmd(
-            &self,
-            cmd: &str,
-            state: &mut DndState,
-        ) -> Result<DndMessage, ChatCommandError> {
-            let cmd_parts = cmd.split(" ").collect_vec();
-            match cmd_parts.first() {
-                // roll
-                Some(&"roll") | Some(&"r") | Some(&"d") => {
-                    let roll = *cmd_parts
-                        .get(1)
-                        .ok_or(ChatCommandError::ExpectedMoreArgs(1))?;
-
-                    roll_die(roll)
-                        .map(|(die, val)| {
-                            DndMessage::Log(Log {
-                                user: state.owned_user(),
-                                payload: LogMessage::Roll(die, val),
-                            })
-                        })
-                        .map_err(|e| e.into())
-                }
-                // add more cmds if you want cale
-                _ => Err(ChatCommandError::BadCommand),
-            }
-        }
-    }
-
-    impl Command for ChatCommand {
-        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            let mut text_it = self.text.chars();
-            match text_it.next() {
-                Some('/') => {
-                    let cmd = text_it.as_str();
-                    match self.parse_cmd(cmd, state) {
-                        Ok(msg) => tx.send(msg.into()),
-                        Err(e) => {
-                            error!("Error parsing command: {e}")
-                        }
-                    };
-                }
-                // little special case here for d for dnd
-                Some('d') => {
-                    let die = ["d ", text_it.as_str()].concat();
-                    match self.parse_cmd(&die, state) {
-                        Ok(msg) => tx.send(msg.into()),
-                        _ => tx.send(
-                            DndMessage::Log(Log {
-                                user: state.owned_user(),
-                                payload: LogMessage::Chat(self.text),
-                            })
-                            .into(),
-                        ),
-                    };
-                }
-                None => {}
-                _ => tx.send(
+        type Parser = (commands::Roll, commands::SaveBoard, commands::LoadBoard);
+        match Parser::parse(&parts) {
+            Some(command) => tx.send(command.to_dnd(state).into()),
+            None => {
+                tx.send(
                     DndMessage::Log(Log {
                         user: state.owned_user(),
                         payload: LogMessage::Chat(self.text),
                     })
                     .into(),
-                ),
+                );
+            }
+        }
+    }
+}
+
+mod comand_parser {
+    use common::message::DndMessage;
+    use egui::TextBuffer;
+
+    use super::DndState;
+
+    pub trait ToDndMessge {
+        fn to_dnd(&self, state: &DndState) -> DndMessage;
+    }
+
+    impl ToDndMessge for DndMessage {
+        fn to_dnd(&self, _state: &DndState) -> DndMessage {
+            self.clone()
+        }
+    }
+
+    impl<T: ToDndMessge + ?Sized> ToDndMessge for Box<T> {
+        fn to_dnd(&self, state: &DndState) -> DndMessage {
+            (**self).to_dnd(state)
+        }
+    }
+
+    pub trait ChatCommandParser {
+        type Output: ToDndMessge + 'static;
+
+        fn parse(parts: &[&str]) -> Option<Self::Output> {
+            let first = parts.first()?;
+
+            Self::prefix()
+                .contains(&first.as_str())
+                .then(|| Self::parse_parts(parts))
+                .flatten()
+        }
+
+        fn prefix() -> Vec<&'static str>;
+        fn parse_parts(parts: &[&str]) -> Option<Self::Output>;
+    }
+
+    macro_rules! impl_command_tuple {
+        (
+            $($type: ident),*
+        ) => {
+            impl<$($type: ChatCommandParser, )*> ChatCommandParser for ($($type, )*) {
+                type Output = Box<dyn ToDndMessge>;
+
+                fn prefix() -> Vec<&'static str> {
+                    [
+                        $($type::prefix(),)*
+                    ].into_iter().flatten().collect()
+                }
+
+                fn parse_parts(parts: &[&str]) -> Option<Self::Output> {
+                    $(
+                        if let Some(res) = $type::parse(parts) {
+                            return Some(Box::new(res));
+                        }
+                    )*
+
+                    None
+                }
             }
         }
     }
 
-    #[derive(Error, Debug)]
-    enum ChatCommandError {
-        #[error("bad cmd try again")]
-        BadCommand,
-        #[error("stupid stupid stupdi; needed {0} args")]
-        ExpectedMoreArgs(u32),
-        #[error("error parsing dice roll {0}")]
-        DiceRollError(#[from] DiceRollError),
+    impl_command_tuple!(T1, T2);
+    impl_command_tuple!(T1, T2, T3);
+    impl_command_tuple!(T1, T2, T3, T4);
+    impl_command_tuple!(T1, T2, T3, T4, T5);
+    impl_command_tuple!(T1, T2, T3, T4, T5, T6);
+    impl_command_tuple!(T1, T2, T3, T4, T5, T6, T7);
+}
+
+pub mod commands {
+    use common::message::{DndMessage, Log, LogMessage};
+    use once_cell::sync::Lazy;
+    use rand::Rng;
+    use regex::Regex;
+
+    use super::{
+        comand_parser::{ChatCommandParser, ToDndMessge},
+        DndState,
+    };
+
+    pub struct Roll {
+        die: u32,
+        val: u32,
     }
 
-    #[derive(Error, Debug)]
-    enum DiceRollError {
-        #[error("Failed to parse the dice number")]
-        ParseError(#[from] std::num::ParseIntError),
+    pub enum Adv {
+        Advantage,
+        Disadvantage,
+        None,
     }
 
-    fn roll_die(roll: &str) -> Result<(u32, u32), DiceRollError> {
-        let die = roll.parse()?;
-        let mut rng = rand::rng();
-        let die_val: u32 = rng.random_range(1..=die);
-        let die_tuple = (die, die_val);
+    impl From<&str> for Adv {
+        fn from(value: &str) -> Self {
+            match value {
+                "+" => Adv::Advantage,
+                "-" => Adv::Disadvantage,
+                _ => Adv::None,
+            }
+        }
+    }
 
-        Ok(die_tuple)
+    impl ToDndMessge for Roll {
+        fn to_dnd(&self, state: &DndState) -> DndMessage {
+            DndMessage::Log(Log {
+                user: state.owned_user(),
+                payload: LogMessage::Roll(self.die, self.val),
+            })
+        }
+    }
+
+    impl ChatCommandParser for Roll {
+        type Output = Self;
+
+        fn prefix() -> Vec<&'static str> {
+            vec!["/roll", "/r"]
+        }
+
+        fn parse_parts(parts: &[&str]) -> Option<Self::Output> {
+            static RE: Lazy<Regex> = Lazy::new(|| {
+                Regex::new(r"(?P<amount>[0-9]*)d(?P<die>[0-9]+)(?P<adv>[\+-])?").unwrap()
+            });
+
+            if parts.len() != 2 {
+                return None;
+            }
+
+            let captures = RE.captures(parts[1])?;
+
+            let get_capture_int = |name, default| -> Option<u32> {
+                captures
+                    .name(name)
+                    .map_or(Some(default), |x| x.as_str().parse().ok())
+            };
+
+            let die_count = get_capture_int("amount", 1)?;
+            let die = get_capture_int("die", 1)?;
+            let adv = captures
+                .name("adv")
+                .map_or(Adv::None, |x| x.as_str().into());
+
+            let mut rng = rand::rng();
+
+            Some(Roll {
+                die,
+                val: rng.random_range(1..=die),
+            })
+        }
+    }
+
+    pub struct SaveBoard {
+        tag: Option<String>,
+    }
+
+    impl ToDndMessge for SaveBoard {
+        fn to_dnd(&self, _: &DndState) -> DndMessage {
+            DndMessage::SaveBoard(common::message::SaveBoard {
+                tag: self.tag.clone(),
+            })
+        }
+    }
+
+    impl ChatCommandParser for SaveBoard {
+        type Output = Self;
+
+        fn prefix() -> Vec<&'static str> {
+            vec!["/save"]
+        }
+
+        fn parse_parts(parts: &[&str]) -> Option<Self::Output> {
+            if parts.len() > 2 {
+                return None;
+            }
+
+            let tag = parts.get(1).map(|x| String::from(*x));
+
+            Some(Self { tag })
+        }
+    }
+
+    pub struct LoadBoard {
+        tag: String,
+    }
+
+    impl ToDndMessge for LoadBoard {
+        fn to_dnd(&self, _: &DndState) -> DndMessage {
+            DndMessage::LoadBoard(common::message::LoadBoard {
+                tag: self.tag.clone(),
+            })
+        }
+    }
+
+    impl ChatCommandParser for LoadBoard {
+        type Output = Self;
+
+        fn prefix() -> Vec<&'static str> {
+            vec!["/load"]
+        }
+
+        fn parse_parts(parts: &[&str]) -> Option<Self::Output> {
+            if parts.len() != 2 {
+                return None;
+            }
+
+            let tag = parts.get(1).map(|x| String::from(*x))?;
+
+            Some(Self { tag })
+        }
+    }
+
+    impl ToDndMessge for String {
+        fn to_dnd(&self, state: &DndState) -> DndMessage {
+            DndMessage::Log(Log {
+                user: state.owned_user(),
+                payload: LogMessage::Chat(self.clone()),
+            })
+        }
     }
 }
