@@ -23,7 +23,7 @@ use postgrest::Postgrest;
 mod db_types;
 mod tasks;
 use db_types::*;
-use tasks::ServerTask;
+use tasks::{board::BoardData, ServerTask};
 use thiserror::Error;
 
 const AUTOSAVE_TIME_IN_SECS: u64 = 30;
@@ -69,87 +69,12 @@ pub struct ClientInfo {
 async fn main() -> io::Result<()> {
     env_logger::init();
     let server = DndServer::new("0.0.0.0", 80)?;
-    server.run();
+    server.run().await;
 
     Ok(())
 }
 
 type PlayerLookup = HashMap<uuid::Uuid, DndPlayerPiece>;
-
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
-struct BoardData {
-    #[serde(skip)]
-    dirty: Arc<AtomicBool>,
-    players: Arc<RwLock<PlayerLookup>>,
-}
-
-impl BoardData {
-    fn mark_dirty(&self) {
-        self.dirty.store(true, std::sync::atomic::Ordering::SeqCst);
-    }
-
-    pub fn mark_clean(&self) {
-        self.dirty.store(false, std::sync::atomic::Ordering::SeqCst);
-    }
-
-    pub fn insert_player(&self, uuid: uuid::Uuid, player: DndPlayerPiece) {
-        let mut players = self.players.write().unwrap();
-        players.insert(uuid, player);
-        self.mark_dirty();
-    }
-
-    pub fn update_player(
-        &self,
-        uuid: &uuid::Uuid,
-        new_player: DndPlayerPiece,
-    ) -> Result<(), ServerError> {
-        let mut players = self.players.write().unwrap();
-        let player = players
-            .get_mut(uuid)
-            .ok_or(ServerError::PlayerNotFound(*uuid))?;
-
-        *player = new_player;
-        self.mark_dirty();
-
-        Ok(())
-    }
-
-    pub fn update_player_location(
-        &self,
-        uuid: &uuid::Uuid,
-        new_location: Pos2,
-    ) -> Result<(), ServerError> {
-        let mut players = self.players.write().unwrap();
-        let player = players
-            .get_mut(uuid)
-            .ok_or(ServerError::PlayerNotFound(*uuid))?;
-
-        player.position = new_location;
-        self.mark_dirty();
-
-        Ok(())
-    }
-
-    pub fn remove_player(&self, uuid: &uuid::Uuid) {
-        self.mark_dirty();
-
-        let mut players = self.players.write().unwrap();
-        players.remove(uuid);
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        self.dirty.load(std::sync::atomic::Ordering::SeqCst)
-    }
-
-    pub fn get_players_owned(&self) -> HashMap<uuid::Uuid, DndPlayerPiece> {
-        self.players.read().unwrap().clone()
-    }
-
-    pub fn overwrite_board_data(&self, new_data: BoardData) {
-        let mut players = self.players.write().unwrap();
-        *players = new_data.players.read().unwrap().clone();
-    }
-}
 
 #[derive(Default, Clone)]
 pub struct UserData {
@@ -264,61 +189,95 @@ impl DndServer {
         Ok(server)
     }
 
-    pub fn run(mut self) {
+    pub async fn run(mut self) {
         let node_listener = self.node_listener.take().unwrap();
-        node_listener.for_each(move |event| match event {
-            node::NodeEvent::Network(net_event) => match net_event {
-                NetEvent::Connected(_, _) => unreachable!(),
-                NetEvent::Accepted(_, _) => (),
-                NetEvent::Message(endpoint, input_data) => {
-                    let message: DndMessage = bincode::deserialize(input_data).unwrap();
-                    match message {
-                        DndMessage::RegisterUser(msg) => self.process_task(endpoint, msg),
-                        DndMessage::UnregisterUser(msg) => self.process_task(endpoint, msg),
-                        DndMessage::UserNotificationRemoved(_) => todo!(),
-                        DndMessage::RetrieveCharacterData(msg) => self.process_task(endpoint, msg),
-                        DndMessage::UpdateItemCount(msg) => self.process_task(endpoint, msg),
-                        DndMessage::UpdateAbilityCount(msg) => self.process_task(endpoint, msg),
-                        DndMessage::UpdateSkills(msg) => self.process_task(endpoint, msg),
-                        DndMessage::UpdateHealth(msg) => self.process_task(endpoint, msg),
-                        DndMessage::UpdatePowerSlotCount(msg) => self.process_task(endpoint, msg),
-                        DndMessage::BoardMessage(msg) => self.process_task(endpoint, msg),
-                        DndMessage::Log(msg) => self.process_task(endpoint, msg),
-                        _ => {
-                            warn!("Unhandled message {message:?}");
+        let server = Arc::new(self);
+
+        let autosave = autosave_task(Arc::clone(&server));
+
+        let listener = async {
+            node_listener.for_each(move |event| {
+                if let node::NodeEvent::Network(net_event) = event {
+                    match net_event {
+                        NetEvent::Connected(_, _) => unreachable!(),
+                        NetEvent::Accepted(_, _) => (),
+                        NetEvent::Message(endpoint, input_data) => {
+                            let message: DndMessage = bincode::deserialize(input_data).unwrap();
+                            match message {
+                                DndMessage::RegisterUser(msg) => server.process_task(endpoint, msg),
+                                DndMessage::UnregisterUser(msg) => {
+                                    server.process_task(endpoint, msg)
+                                }
+                                DndMessage::UserNotificationRemoved(_) => todo!(),
+                                DndMessage::RetrieveCharacterData(msg) => {
+                                    server.process_task(endpoint, msg)
+                                }
+                                DndMessage::UpdateItemCount(msg) => {
+                                    server.process_task(endpoint, msg)
+                                }
+                                DndMessage::UpdateAbilityCount(msg) => {
+                                    server.process_task(endpoint, msg)
+                                }
+                                DndMessage::UpdateSkills(msg) => server.process_task(endpoint, msg),
+                                DndMessage::UpdateHealth(msg) => server.process_task(endpoint, msg),
+                                DndMessage::UpdatePowerSlotCount(msg) => {
+                                    server.process_task(endpoint, msg)
+                                }
+                                DndMessage::BoardMessage(msg) => server.process_task(endpoint, msg),
+                                DndMessage::Log(msg) => server.process_task(endpoint, msg),
+                                _ => {
+                                    warn!("Unhandled message {message:?}");
+                                }
+                            }
+                        }
+                        NetEvent::Disconnected(endpoint) => {
+                            let user = server.users.find_name_for_endpoint(endpoint);
+
+                            if let Some(name) = user {
+                                let name = name.clone();
+
+                                server.process_task(endpoint, UnRegisterUser { name });
+                            }
                         }
                     }
                 }
-                NetEvent::Disconnected(endpoint) => {
-                    let user = self.users.find_name_for_endpoint(endpoint);
+            });
+        };
 
-                    if let Some(name) = user {
-                        let name = name.clone();
-
-                        self.process_task(endpoint, UnRegisterUser { name });
-                    }
-                }
-            },
-            node::NodeEvent::Signal(signal) => match signal {
-                Signal::Autosave => {
-                    info!("Autosaving...");
-
-                    self.process_task(self.self_endpoint, tasks::board::SaveBoardData);
-
-                    self.handler.signals().send_with_timer(
-                        Signal::Autosave,
-                        Duration::from_secs(AUTOSAVE_TIME_IN_SECS),
-                    );
-                }
-            },
-        });
+        tokio::join!(autosave, listener);
     }
 
     fn process_task<T: tasks::ServerTask>(&self, endpoint: Endpoint, task: T) {
-        let res = futures::executor::block_on(task.process(endpoint, self));
+        futures::executor::block_on(self.process_task_async(endpoint, task));
+    }
+
+    async fn process_task_async<T: tasks::ServerTask>(&self, endpoint: Endpoint, task: T) {
+        let res = task.process(endpoint, self).await;
 
         if let Err(e) = res {
             error!("Error handling server task: {e}");
         }
+    }
+}
+
+async fn autosave_task(server: Arc<DndServer>) {
+    let res = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(AUTOSAVE_TIME_IN_SECS));
+
+        loop {
+            interval.tick().await;
+
+            info!("Autosaving...");
+            server
+                .process_task_async(server.self_endpoint, tasks::board::SaveBoardData)
+                .await;
+
+            info!("Autosave complete...");
+        }
+    })
+    .await;
+
+    if let Err(res) = res {
+        error!("Failed to spawn autosave thread: {res}");
     }
 }
