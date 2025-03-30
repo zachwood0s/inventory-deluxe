@@ -7,7 +7,6 @@ use common::{
     message::{BoardMessage, DndMessage, LoadBoard, Log, LogMessage, SaveBoard},
     DndPlayerPiece,
 };
-use emath::Pos2;
 use log::info;
 use message_io::network::Endpoint;
 
