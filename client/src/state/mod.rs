@@ -7,6 +7,7 @@ pub mod chat;
 
 #[derive(Default)]
 pub struct DndState {
+    pub backend_board: board::BackendBoardState,
     pub board: board::BoardState,
     pub chat: chat::ChatState,
     pub character: character::CharacterState,

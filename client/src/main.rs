@@ -17,11 +17,11 @@ use view::DndTab;
 
 use clap::Parser;
 
-mod listener;
-mod prelude;
-mod state;
-mod view;
-mod widgets;
+pub mod listener;
+pub mod prelude;
+pub mod state;
+pub mod view;
+pub mod widgets;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

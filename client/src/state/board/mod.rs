@@ -3,9 +3,16 @@ use std::cmp;
 use common::SortingLayer;
 use egui::{ahash::HashMap, Image, Painter, Rounding, Stroke, TextureHandle, TextureOptions};
 use itertools::Itertools;
+use pieces::BoardPieceSet;
 use uuid::Uuid;
 
 use crate::{prelude::*, view::Board};
+pub mod pieces;
+
+#[derive(Default)]
+pub struct BackendBoardState {
+    pub pieces: BoardPieceSet,
+}
 
 pub struct PlayerPiece {
     pub rect: Rect,

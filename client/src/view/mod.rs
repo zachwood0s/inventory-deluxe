@@ -1,27 +1,20 @@
 mod abilities;
-mod board;
+pub mod board;
 mod character;
 mod chat;
 mod items;
 pub mod multi_select;
 mod settings;
 
-use std::sync::mpsc::Receiver;
-
 pub use abilities::*;
 pub use board::*;
 pub use character::*;
 pub use chat::*;
-use common::message::DndMessage;
 use egui::Color32;
 use egui_dock::{NodeIndex, SurfaceIndex};
 pub use items::*;
-use message_io::events::EventSender;
 
-use crate::{
-    listener::{CommandQueue, Signal},
-    state::DndState,
-};
+use crate::{listener::CommandQueue, state::DndState};
 
 use self::settings::Settings;
 

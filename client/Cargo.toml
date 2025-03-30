@@ -22,6 +22,7 @@ clap = { version = "4.5.17", features = ["derive"] }
 emath = { workspace = true }
 itertools = { workspace = true }
 thiserror = { workspace = true }
+derive_more = { workspace = true }
 egui_demo_lib = "0.29.1"
 regex = "1.11.1"
 once_cell = "1.21.3"

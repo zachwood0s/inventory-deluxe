@@ -1,11 +1,8 @@
-use crate::{
-    prelude::*,
-    state::board::commands::{Drag, PieceParams},
-};
+use board_render::{BoardRender, Grid, RenderContext};
 use common::SortingLayer;
 use egui::{
-    epaint::PathStroke, Color32, DragValue, Frame, Image, Painter, Rect, Rounding, Shape, Stroke,
-    Widget,
+    epaint::PathStroke, Color32, DragValue, Frame, Image, Painter, Pos2, Rect, Response, Rounding,
+    Shape, Stroke, Vec2, Widget,
 };
 use emath::RectTransform;
 use itertools::Itertools;
@@ -15,12 +12,126 @@ use uuid::Uuid;
 use crate::{
     listener::CommandQueue,
     state::{
-        board::{self},
+        board::{
+            self,
+            commands::PieceParams,
+            pieces::{BoardPieceImpl, BoardPieceSet, PieceId},
+        },
         DndState,
     },
 };
 
 use super::{multi_select::MultiSelect, DndTabImpl};
+
+pub mod board_render;
+pub mod properties_window;
+
+// Common:
+// - Position
+// - Size
+// - Layer
+//
+// Player Pieces
+// - Modifiable properties
+//   - Status effects
+//   - Health
+//   - name
+//   - Image
+//   - Layer
+//   - Size
+//   - Position
+// Map Piece (map decoration)
+// - Modifiable properties
+//   - Image
+//   - Layer
+//   - Size
+//   - Position
+// InternalDecoration
+// - Image (internal)
+// - draggable (true/false)
+
+#[derive(Default, Clone, Copy)]
+pub struct SelectionState {
+    view_properties: Option<PieceId>,
+    selected: Option<PieceId>,
+    dragged: Option<PieceId>,
+}
+
+pub struct UiBoardState {
+    grid: Grid,
+
+    selection: SelectionState,
+
+    view_origin: Pos2,
+    zoom: f32,
+}
+
+impl Default for UiBoardState {
+    fn default() -> Self {
+        Self {
+            grid: Grid::new(0.1),
+
+            selection: SelectionState::default(),
+
+            view_origin: Pos2::default(),
+            zoom: 1.0,
+        }
+    }
+}
+
+impl UiBoardState {
+    fn view_properties<'a>(&self, piece_set: &'a BoardPieceSet) -> Option<&'a dyn BoardPieceImpl> {
+        let piece_id = self.selection.view_properties?;
+
+        piece_set.get_piece(&piece_id)
+    }
+
+    fn handle_board_input(
+        &mut self,
+        ctx: &RenderContext,
+        response: &Response,
+        state: &DndState,
+        commands: &mut CommandQueue,
+    ) {
+    }
+
+    fn ui_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        state: &DndState,
+        commands: &mut CommandQueue,
+    ) -> egui::Response {
+        let (response, painter) = ui.allocate_painter(
+            ui.available_size_before_wrap(),
+            egui::Sense::click_and_drag(),
+        );
+
+        let render_dimensions = response.rect.square_proportions() * self.zoom;
+        let to_screen = emath::RectTransform::from_to(
+            Rect::from_center_size(self.view_origin, render_dimensions),
+            response.rect,
+        );
+
+        let ctx = RenderContext {
+            ui,
+            painter,
+            selection_state: self.selection,
+            to_screen,
+            from_screen: to_screen.inverse(),
+            render_dimensions,
+        };
+
+        self.handle_board_input(&ctx, &response, state, commands);
+        self.grid.render(&ctx);
+        state.backend_board.pieces.render(&ctx);
+
+        if let Some(piece) = self.view_properties(&state.backend_board.pieces) {
+            piece.display_props(ui);
+        }
+
+        response
+    }
+}
 
 pub struct Board {
     mouse_pos: Pos2,
@@ -158,8 +269,10 @@ impl Board {
                 );
 
                 let center_rect = Rect::from_two_pos(
-                    (from_screen * self.highlight_end_pos / Board::GRID_SIZE).round() * Board::GRID_SIZE,
-                    (from_screen * self.highlight_start_pos.unwrap() / Board::GRID_SIZE).round() * Board::GRID_SIZE,
+                    (from_screen * self.highlight_end_pos / Board::GRID_SIZE).round()
+                        * Board::GRID_SIZE,
+                    (from_screen * self.highlight_start_pos.unwrap() / Board::GRID_SIZE).round()
+                        * Board::GRID_SIZE,
                 );
 
                 commands.add(board::commands::AddPiece {
@@ -175,9 +288,7 @@ impl Board {
 
                 self.highlight_start_pos = None;
             }
-        } else if ui.input(|input| input.modifiers.ctrl)
-            && response.is_pointer_button_down_on()
-        {
+        } else if ui.input(|input| input.modifiers.ctrl) && response.is_pointer_button_down_on() {
             self.highlight_start_pos = response.interact_pointer_pos();
             self.highlight_end_pos = response.interact_pointer_pos().unwrap();
         } else if response.clicked_by(egui::PointerButton::Primary) {
