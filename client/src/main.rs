@@ -21,6 +21,7 @@ mod listener;
 mod prelude;
 mod state;
 mod view;
+mod widgets;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

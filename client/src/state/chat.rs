@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, widgets::frames::Emphasized};
 use comand_parser::{ChatCommandParser, ToDndMessge};
 use egui::{text::LayoutJob, Align, Color32, FontSelection, Margin, RichText, Rounding, Style};
 use itertools::Itertools;
@@ -20,7 +20,11 @@ impl ClientLogMessage {
         if display_name {
             ui.separator();
             if !hide_name {
-                ui.colored_label(Color32::LIGHT_BLUE, format!("{}: ", self.user.name));
+                ui.label(
+                    RichText::new(format!("{}: ", self.user.name))
+                        .strong()
+                        .color(Color32::LIGHT_BLUE),
+                );
             }
         }
 
@@ -123,16 +127,11 @@ impl ClientLogMessage {
                         Align::RIGHT,
                     );
 
-                egui::Frame::none()
-                    .fill(style.visuals.extreme_bg_color)
-                    .rounding(Rounding::from(5.0))
-                    .inner_margin(Margin::from(5.0))
-                    .outer_margin(Margin::symmetric(0.0, 2.0))
-                    .show(ui, |ui| {
-                        ui.label(layout_job);
-                        ui.separator();
-                        ui.label(result_layout);
-                    });
+                Emphasized.show(ui, |ui| {
+                    ui.label(layout_job);
+                    ui.separator();
+                    ui.label(result_layout);
+                });
             }
         };
     }
@@ -263,6 +262,7 @@ mod comand_parser {
 pub mod commands {
     use common::message::{DieRoll, DndMessage, Log, LogMessage, SingleDieRoll};
     use itertools::Itertools;
+    use log::info;
     use once_cell::sync::Lazy;
     use rand::Rng;
     use regex::Regex;
@@ -391,8 +391,10 @@ pub mod commands {
 
         fn parse_parts(parts: &[&str]) -> Option<Self::Output> {
             static RE: Lazy<Regex> = Lazy::new(|| {
+                // Parses the form of [num]d[num](mod[num])?
+                // i.e. 2d20kh1
                 Regex::new(
-                    r"(?P<amount>[0-9]*)d(?P<die>[0-9]+)((?P<adv>[a-zA-Z]+)(?P<adv_value>[0-9]+))?",
+                    r"(?P<amount>[0-9]+)?d(?P<die>[0-9]+)((?P<adv>[a-zA-Z]+)(?P<adv_value>[0-9]+))?",
                 )
                 .unwrap()
             });
@@ -407,11 +409,13 @@ pub mod commands {
             const MAX_DIE_COUNT: u32 = 1_000;
 
             let get_capture_int = |name, default, maximum| -> Option<u32> {
-                let val = captures
-                    .name(name)
-                    .map_or(Some(default), |x| x.as_str().parse().ok())?;
+                if let Some(val) = captures.name(name) {
+                    let parsed = val.as_str().parse().ok()?;
 
-                (val < maximum).then_some(val)
+                    (parsed < maximum).then_some(parsed)
+                } else {
+                    Some(default)
+                }
             };
 
             let die_count = get_capture_int("amount", 1, MAX_DIE_COUNT)?;
