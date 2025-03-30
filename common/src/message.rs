@@ -12,6 +12,19 @@ pub struct Log {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct SingleDieRoll {
+    pub value: u32,
+    pub taken: bool,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct DieRoll {
+    pub roll_str: String,
+    pub total: u32,
+    pub rolls: Vec<SingleDieRoll>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum LogMessage {
     Chat(String),
     UseItem(String, u32),
@@ -19,7 +32,7 @@ pub enum LogMessage {
     Server(String),
     Joined(String),
     Disconnected(String),
-    Roll(u32, u32),
+    Roll(DieRoll),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

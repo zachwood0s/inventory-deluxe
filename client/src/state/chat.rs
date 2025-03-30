@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use comand_parser::{ChatCommandParser, ToDndMessge};
-use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
+use egui::{text::LayoutJob, Align, Color32, FontSelection, Margin, RichText, Rounding, Style};
 use itertools::Itertools;
 
 pub struct ClientLogMessage {
@@ -76,8 +76,63 @@ impl ClientLogMessage {
 
                 ui.label(layout_job);
             }
-            LogMessage::Roll(die, value) => {
-                ui.colored_label(Color32::DARK_GRAY, format!("d{} = {}", die, value));
+            LogMessage::Roll(die_roll) => {
+                let style = Style::default();
+                let mut layout_job = LayoutJob::default();
+
+                let mut rolls = die_roll.rolls.iter().peekable();
+                while let Some(roll) = rolls.next() {
+                    let color = if roll.taken {
+                        Color32::GREEN
+                    } else {
+                        Color32::GRAY
+                    };
+
+                    RichText::new(format!("{}", roll.value))
+                        .color(color)
+                        .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
+
+                    if rolls.peek().is_some() {
+                        RichText::new(" + ").color(Color32::DARK_GRAY).append_to(
+                            &mut layout_job,
+                            &style,
+                            FontSelection::Default,
+                            Align::LEFT,
+                        );
+                    }
+                }
+
+                let mut result_layout = LayoutJob::default();
+
+                RichText::new(format!("{} = ", die_roll.roll_str))
+                    .color(Color32::DARK_GRAY)
+                    .append_to(
+                        &mut result_layout,
+                        &style,
+                        FontSelection::Default,
+                        Align::RIGHT,
+                    );
+
+                RichText::new(format!("{}", die_roll.total))
+                    .color(Color32::GREEN)
+                    .italics()
+                    .append_to(
+                        &mut result_layout,
+                        &style,
+                        FontSelection::Default,
+                        Align::RIGHT,
+                    );
+
+                egui::Frame::none()
+                    .fill(style.visuals.extreme_bg_color)
+                    .rounding(Rounding::from(5.0))
+                    .inner_margin(Margin::from(5.0))
+                    .outer_margin(Margin::symmetric(0.0, 2.0))
+                    .show(ui, |ui| {
+                        ui.label(layout_job);
+                        ui.separator();
+                        ui.label(result_layout);
+                    });
             }
         };
     }
@@ -206,7 +261,8 @@ mod comand_parser {
 }
 
 pub mod commands {
-    use common::message::{DndMessage, Log, LogMessage};
+    use common::message::{DieRoll, DndMessage, Log, LogMessage, SingleDieRoll};
+    use itertools::Itertools;
     use once_cell::sync::Lazy;
     use rand::Rng;
     use regex::Regex;
@@ -217,31 +273,111 @@ pub mod commands {
     };
 
     pub struct Roll {
+        roll_str: String,
+        die_count: u32,
         die: u32,
-        val: u32,
+        modifier: Option<Modifier>,
     }
 
-    pub enum Adv {
-        Advantage,
-        Disadvantage,
-        None,
+    #[derive(PartialEq, Eq, Clone, Copy)]
+    pub enum ValueType {
+        Highest,
+        Lowest,
     }
 
-    impl From<&str> for Adv {
-        fn from(value: &str) -> Self {
-            match value {
-                "+" => Adv::Advantage,
-                "-" => Adv::Disadvantage,
-                _ => Adv::None,
+    pub enum ModifierType {
+        Keep,
+        Drop,
+    }
+
+    pub struct Modifier {
+        modi: ModifierType,
+        val: ValueType,
+        count: u32,
+    }
+
+    impl Modifier {
+        fn keep(val: ValueType, count: u32) -> Self {
+            Self {
+                modi: ModifierType::Keep,
+                val,
+                count,
             }
+        }
+
+        fn drop(val: ValueType, count: u32) -> Self {
+            Self {
+                modi: ModifierType::Drop,
+                val,
+                count,
+            }
+        }
+
+        pub fn parse(parse_str: &str, count: u32) -> Option<Self> {
+            match parse_str.to_lowercase().as_str() {
+                "kh" => Some(Self::keep(ValueType::Highest, count)),
+                "kl" => Some(Self::keep(ValueType::Lowest, count)),
+                "dh" => Some(Self::drop(ValueType::Highest, count)),
+                "dl" => Some(Self::drop(ValueType::Lowest, count)),
+                _ => None,
+            }
+        }
+
+        pub fn apply(&self, rolls: &mut [SingleDieRoll]) {
+            let mut ordered = rolls
+                .iter_mut()
+                .sorted_by_key(|roll| roll.value)
+                .collect_vec();
+
+            if self.val == ValueType::Highest {
+                ordered.reverse();
+            }
+
+            // - For "keeping" values, we mark all as not taken, then mark
+            // the selected values as taken
+            // - For "dropping" values, we keep all as taken, then mark
+            // the selected values as NOT taken
+            let mark_top_value = match self.modi {
+                ModifierType::Keep => {
+                    ordered.iter_mut().for_each(|x| x.taken = false);
+                    true
+                }
+                ModifierType::Drop => false,
+            };
+
+            // Go through each in the ordered list and mark the them as taken or dropped.
+            ordered
+                .iter_mut()
+                .take(self.count as usize)
+                .for_each(|x| x.taken = mark_top_value);
         }
     }
 
     impl ToDndMessge for Roll {
         fn to_dnd(&self, state: &DndState) -> DndMessage {
+            let mut rng = rand::rng();
+
+            let mut rolls = Vec::new();
+            for _ in 0..self.die_count {
+                let value = rng.random_range(1..=self.die);
+
+                // All rolls start off as taken, we'll elminate later
+                rolls.push(SingleDieRoll { value, taken: true })
+            }
+
+            if let Some(modifier) = &self.modifier {
+                modifier.apply(&mut rolls);
+            }
+
+            let total = rolls.iter().flat_map(|x| x.taken.then_some(x.value)).sum();
+
             DndMessage::Log(Log {
                 user: state.owned_user(),
-                payload: LogMessage::Roll(self.die, self.val),
+                payload: LogMessage::Roll(DieRoll {
+                    roll_str: self.roll_str.clone(),
+                    total,
+                    rolls,
+                }),
             })
         }
     }
@@ -255,7 +391,10 @@ pub mod commands {
 
         fn parse_parts(parts: &[&str]) -> Option<Self::Output> {
             static RE: Lazy<Regex> = Lazy::new(|| {
-                Regex::new(r"(?P<amount>[0-9]*)d(?P<die>[0-9]+)(?P<adv>[\+-])?").unwrap()
+                Regex::new(
+                    r"(?P<amount>[0-9]*)d(?P<die>[0-9]+)((?P<adv>[a-zA-Z]+)(?P<adv_value>[0-9]+))?",
+                )
+                .unwrap()
             });
 
             if parts.len() != 2 {
@@ -264,23 +403,29 @@ pub mod commands {
 
             let captures = RE.captures(parts[1])?;
 
-            let get_capture_int = |name, default| -> Option<u32> {
-                captures
+            const MAX_DIE_ROLL: u32 = 1_000;
+            const MAX_DIE_COUNT: u32 = 1_000;
+
+            let get_capture_int = |name, default, maximum| -> Option<u32> {
+                let val = captures
                     .name(name)
-                    .map_or(Some(default), |x| x.as_str().parse().ok())
+                    .map_or(Some(default), |x| x.as_str().parse().ok())?;
+
+                (val < maximum).then_some(val)
             };
 
-            let die_count = get_capture_int("amount", 1)?;
-            let die = get_capture_int("die", 1)?;
-            let adv = captures
+            let die_count = get_capture_int("amount", 1, MAX_DIE_COUNT)?;
+            let die = get_capture_int("die", 1, MAX_DIE_ROLL)?;
+            let adv_value = get_capture_int("adv_value", 0, MAX_DIE_ROLL);
+            let modifier = captures
                 .name("adv")
-                .map_or(Adv::None, |x| x.as_str().into());
-
-            let mut rng = rand::rng();
+                .and_then(|x| Modifier::parse(x.as_str(), adv_value.unwrap()));
 
             Some(Roll {
+                roll_str: parts[1].into(),
                 die,
-                val: rng.random_range(1..=die),
+                die_count,
+                modifier,
             })
         }
     }
