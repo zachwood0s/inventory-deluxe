@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::anyhow;
 use emath::Pos2;
 use log::{error, info, warn};
 use message_io::{
@@ -154,7 +155,7 @@ impl DndServer {
         let (handler, node_listener) = node::split::<Signal>();
         let addr = (addr, port).to_socket_addrs().unwrap().next().unwrap();
 
-        let (ws_id, ws_addr) = handler.network().listen(Transport::Ws, addr)?;
+        let (_, ws_addr) = handler.network().listen(Transport::Ws, addr)?;
 
         let url = dotenv::var("NEXT_PUBLIC_SUPABASE_URL").unwrap();
         let db = Postgrest::new(url).insert_header(
@@ -203,41 +204,13 @@ impl DndServer {
                         NetEvent::Accepted(_, _) => (),
                         NetEvent::Message(endpoint, input_data) => {
                             let message: DndMessage = bincode::deserialize(input_data).unwrap();
-                            match message {
-                                DndMessage::RegisterUser(msg) => server.process_task(endpoint, msg),
-                                DndMessage::UnregisterUser(msg) => {
-                                    server.process_task(endpoint, msg)
-                                }
-                                DndMessage::UserNotificationRemoved(_) => todo!(),
-                                DndMessage::RetrieveCharacterData(msg) => {
-                                    server.process_task(endpoint, msg)
-                                }
-                                DndMessage::UpdateItemCount(msg) => {
-                                    server.process_task(endpoint, msg)
-                                }
-                                DndMessage::UpdateAbilityCount(msg) => {
-                                    server.process_task(endpoint, msg)
-                                }
-                                DndMessage::UpdateSkills(msg) => server.process_task(endpoint, msg),
-                                DndMessage::UpdateHealth(msg) => server.process_task(endpoint, msg),
-                                DndMessage::UpdatePowerSlotCount(msg) => {
-                                    server.process_task(endpoint, msg)
-                                }
-                                DndMessage::BoardMessage(msg) => server.process_task(endpoint, msg),
-                                DndMessage::SaveBoard(msg) => server.process_task(endpoint, msg),
-                                DndMessage::LoadBoard(msg) => server.process_task(endpoint, msg),
-                                DndMessage::Log(msg) => server.process_task(endpoint, msg),
-                                _ => {
-                                    warn!("Unhandled message {message:?}");
-                                }
-                            }
+                            server.process_task(endpoint, message);
                         }
                         NetEvent::Disconnected(endpoint) => {
                             let user = server.users.find_name_for_endpoint(endpoint);
 
                             if let Some(name) = user {
                                 let name = name.clone();
-
                                 server.process_task(endpoint, UnRegisterUser { name });
                             }
                         }
@@ -258,6 +231,27 @@ impl DndServer {
 
         if let Err(e) = res {
             error!("Error handling server task: {e}");
+        }
+    }
+}
+
+impl ServerTask for DndMessage {
+    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+        match self {
+            DndMessage::RegisterUser(msg) => msg.process(endpoint, server).await,
+            DndMessage::UnregisterUser(msg) => msg.process(endpoint, server).await,
+            DndMessage::UserNotificationRemoved(_) => todo!(),
+            DndMessage::RetrieveCharacterData(msg) => msg.process(endpoint, server).await,
+            DndMessage::UpdateItemCount(msg) => msg.process(endpoint, server).await,
+            DndMessage::UpdateAbilityCount(msg) => msg.process(endpoint, server).await,
+            DndMessage::UpdateSkills(msg) => msg.process(endpoint, server).await,
+            DndMessage::UpdateHealth(msg) => msg.process(endpoint, server).await,
+            DndMessage::UpdatePowerSlotCount(msg) => msg.process(endpoint, server).await,
+            DndMessage::BoardMessage(msg) => msg.process(endpoint, server).await,
+            DndMessage::SaveBoard(msg) => msg.process(endpoint, server).await,
+            DndMessage::LoadBoard(msg) => msg.process(endpoint, server).await,
+            DndMessage::Log(msg) => msg.process(endpoint, server).await,
+            _ => Err(anyhow!("Unhandled message {self:?}")),
         }
     }
 }
