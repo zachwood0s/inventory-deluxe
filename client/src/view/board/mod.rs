@@ -1,6 +1,6 @@
 use board_render::{BoardRender, Grid, RenderContext};
 use common::{
-    board::{BoardPiece, BoardPieceSet, PieceId},
+    board::{BoardPiece, BoardPieceSet, GridSnap, PieceId},
     SortingLayer,
 };
 use egui::{
@@ -127,8 +127,10 @@ impl UiBoardState {
             self.view_origin = ctx.from_screen * (screen_origin - response.drag_delta());
         }
 
-        // Handle selection of a piece
-        if response.clicked_by(egui::PointerButton::Primary) {
+        // Handle selection of a piece, both right and left click select
+        if response.clicked_by(egui::PointerButton::Primary)
+            || response.clicked_by(egui::PointerButton::Secondary)
+        {
             let selected_idx = piece_set.get_topmost_piece_at_position(self.input.board_mouse_pos);
 
             info!("New selected {selected_idx:?}");
@@ -141,6 +143,8 @@ impl UiBoardState {
         }
 
         response.context_menu(|ui| {
+            ui.set_width(100.0);
+
             if let Some(selected) = self.selection.selected {
                 if ui.button("View Properties").clicked() {
                     self.selection.view_properties = Some(selected);
@@ -151,11 +155,23 @@ impl UiBoardState {
                 self.selection.selected = Some(new_id);
 
                 let new_rect = self.grid.unit_rect(self.input.board_mouse_pos);
-                let new_piece = BoardPiece::from_rect(new_id, new_rect);
+                let new_piece = BoardPiece::from_rect(new_id, "New Piece".into(), new_rect);
 
                 commands.add(AddPiece(new_piece))
             }
         });
+    }
+
+    fn snap_to_grid(&mut self, piece_set: &mut BoardPieceSet) {
+        for piece in piece_set.iter_mut() {
+            if let GridSnap::MajorSpacing(spacing) = piece.snap_to_grid {
+                let current_pos = piece.rect.min;
+
+                let new_pos = (current_pos / spacing).floor() * spacing;
+
+                piece.rect = piece.rect.translate(new_pos - current_pos);
+            }
+        }
     }
 
     fn ui_content(
@@ -191,11 +207,12 @@ impl UiBoardState {
         let mut board = state.client_board.lock().unwrap();
 
         self.handle_board_input(&mut ctx, &response, &board.piece_set, commands);
+        self.snap_to_grid(&mut board.piece_set);
         self.grid.render(&ctx);
         board.piece_set.render(&ctx);
 
         if let Some(piece) = self.view_properties(&mut board.piece_set) {
-            piece.display_props(ui);
+            piece.display_props(ui, state);
         }
 
         response

@@ -72,23 +72,45 @@ pub struct BoardPieceSet {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum GridSnap {
+    MajorSpacing(f32),
+    None,
+}
+
+#[derive(
+    Debug, Clone, serde::Serialize, serde::Deserialize, derive_more::Deref, derive_more::DerefMut,
+)]
+pub struct Color([f32; 4]);
+
+impl Default for Color {
+    fn default() -> Self {
+        Self([1.0, 1.0, 1.0, 1.0])
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BoardPiece {
     pub id: PieceId,
+    pub name: String,
     pub rect: Rect,
-    pub image_url: Option<String>,
+    pub image_url: String,
+    pub color: Color,
     pub sorting_layer: SortingLayer,
+    pub snap_to_grid: GridSnap,
+    pub locked: bool,
     pub data: BoardPieceData,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, derive_more::Display, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum BoardPieceData {
+    #[display("Player")]
     Player(PlayerPieceData),
     None,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct PlayerPieceData {
-    pub name: String,
+    pub link_stats_to: Option<String>,
 }
 
 impl BoardPieceSet {
@@ -114,6 +136,14 @@ impl BoardPieceSet {
         self.sorted_iter_items().map(|(_, x)| x)
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &BoardPiece> {
+        self.pieces.values()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut BoardPiece> {
+        self.pieces.values_mut()
+    }
+
     pub fn get_piece(&self, id: &PieceId) -> Option<&BoardPiece> {
         self.pieces.get(id)
     }
@@ -128,13 +158,26 @@ impl BoardPieceSet {
 }
 
 impl BoardPiece {
-    pub fn from_rect(id: PieceId, rect: Rect) -> Self {
+    pub fn from_rect(id: PieceId, name: String, rect: Rect) -> Self {
         Self {
             id,
             rect,
-            image_url: None,
+            name,
+            color: Color::default(),
+            image_url: String::default(),
             sorting_layer: SortingLayer::default(),
+            snap_to_grid: GridSnap::MajorSpacing(1.0),
+            locked: false,
             data: BoardPieceData::None,
+        }
+    }
+}
+
+impl GridSnap {
+    pub fn is_snap(&self) -> bool {
+        match self {
+            GridSnap::MajorSpacing(_) => true,
+            GridSnap::None => false,
         }
     }
 }

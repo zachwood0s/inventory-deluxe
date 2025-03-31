@@ -1,6 +1,6 @@
 use common::board::{BoardPiece, BoardPieceData, BoardPieceSet, PlayerPieceData};
 use egui::{
-    epaint::PathStroke, Color32, Image, Painter, Pos2, Rect, Rounding, Shape, Stroke,
+    epaint::PathStroke, Color32, Image, Painter, Pos2, Rect, Rgba, Rounding, Shape, Stroke,
     TextureOptions, Ui, Vec2,
 };
 use emath::RectTransform;
@@ -28,24 +28,30 @@ impl BoardRender for BoardPiece {
         let transformed = ctx.from_grid.transform_rect(self.rect);
         let transformed = ctx.to_screen.transform_rect(transformed);
 
-        let mut alpha = u8::MAX;
+        let mut alpha = 1.0;
         if Some(self.id) == ctx.selection_state.dragged {
-            alpha /= 10;
+            alpha /= 10.0;
         }
 
-        if let Some(url) = &self.image_url {
-            Image::new(url)
+        let mut color = Rgba::from_rgba_unmultiplied(
+            self.color[0],
+            self.color[1],
+            self.color[2],
+            self.color[3],
+        );
+
+        color[3] = alpha;
+
+        if !self.image_url.is_empty() {
+            Image::new(&self.image_url)
                 .texture_options(
                     TextureOptions::LINEAR.with_mipmap_mode(Some(egui::TextureFilter::Linear)),
                 )
-                .tint(Color32::from_white_alpha(alpha))
+                .tint(Color32::from(color))
                 .paint_at(ctx.ui, transformed);
         } else {
-            ctx.painter.rect_filled(
-                transformed,
-                Rounding::ZERO,
-                Color32::from_white_alpha(alpha),
-            );
+            ctx.painter
+                .rect_filled(transformed, Rounding::ZERO, Color32::from(color));
         }
 
         if Some(self.id) == ctx.selection_state.selected {

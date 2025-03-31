@@ -46,7 +46,7 @@ fn main() -> eframe::Result {
             // This gives us image support:
             egui_extras::install_image_loaders(&cc.egui_ctx);
 
-            cc.egui_ctx.set_pixels_per_point(1.5);
+            cc.egui_ctx.set_pixels_per_point(1.2);
 
             let mut fonts = egui::FontDefinitions::default();
             egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
