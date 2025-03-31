@@ -1,4 +1,7 @@
-use common::{message::DndMessage, User};
+use std::sync::{Arc, Mutex};
+
+use board::ClientBoard;
+use common::{board::BoardData, message::DndMessage, User};
 
 pub mod abilities;
 pub mod board;
@@ -7,7 +10,7 @@ pub mod chat;
 
 #[derive(Default)]
 pub struct DndState {
-    pub backend_board: board::BackendBoardState,
+    pub client_board: ClientBoard,
     pub board: board::BoardState,
     pub chat: chat::ChatState,
     pub character: character::CharacterState,
@@ -20,6 +23,7 @@ impl DndState {
         self.chat.process(&message);
         self.character.process(&message);
         self.board.process(&message);
+        self.client_board.process(&message);
 
         match message {
             DndMessage::CharacterList(list) => self.character_list = list,

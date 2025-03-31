@@ -75,6 +75,11 @@ impl MyApp {
         let tree = DockState::new(vec![
             DndTab::from_tab(view::Chat::default(), SurfaceIndex::main(), NodeIndex(1)),
             DndTab::from_tab(view::Board::default(), SurfaceIndex::main(), NodeIndex(2)),
+            DndTab::from_tab(
+                view::UiBoardState::default(),
+                SurfaceIndex::main(),
+                NodeIndex(3),
+            ),
         ]);
 
         Self {

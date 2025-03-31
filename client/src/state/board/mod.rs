@@ -1,17 +1,40 @@
-use std::cmp;
+use std::{
+    cmp,
+    sync::{Arc, Mutex},
+};
 
-use common::SortingLayer;
-use egui::{ahash::HashMap, Image, Painter, Rounding, Stroke, TextureHandle, TextureOptions};
+use common::{board::BoardData, SortingLayer};
+use egui::{ahash::HashMap, Image, Painter, Rounding, Stroke, TextureOptions};
 use itertools::Itertools;
-use pieces::BoardPieceSet;
 use uuid::Uuid;
 
-use crate::{prelude::*, view::Board};
-pub mod pieces;
+use crate::prelude::*;
 
-#[derive(Default)]
-pub struct BackendBoardState {
-    pub pieces: BoardPieceSet,
+#[derive(Default, Debug, Clone, derive_more::DerefMut, derive_more::Deref)]
+pub struct ClientBoard {
+    server_board: Arc<Mutex<BoardData>>,
+}
+
+impl ClientBoard {
+    pub fn process(&mut self, message: &DndMessage) {
+        let DndMessage::BoardMessage(msg) = message else {
+            return;
+        };
+
+        let mut board = self.server_board.lock().unwrap();
+
+        match msg {
+            // TODO: Can maybe simplify and turn these into the same command
+            BoardMessage::AddPiece(piece) => {
+                info!("Adding new piece {piece:?}");
+                board.piece_set.add_or_update_piece(piece.clone());
+            }
+            BoardMessage::UpdatePiece(piece) => {
+                board.piece_set.add_or_update_piece(piece.clone());
+            }
+            _ => {}
+        }
+    }
 }
 
 pub struct PlayerPiece {
@@ -122,6 +145,7 @@ impl BoardState {
                 self.dragged_id = None;
                 self.selected_id = None;
             }
+            _ => {}
         }
     }
 
@@ -168,7 +192,7 @@ impl BoardState {
 }
 
 pub mod commands {
-    use common::SortingLayer;
+    use common::{board::BoardPiece, SortingLayer};
 
     use super::*;
     use crate::{prelude::*, view::Board};
@@ -238,6 +262,17 @@ pub mod commands {
         }
     }
 
+    pub struct AddPiece(pub BoardPiece);
+
+    impl Command for AddPiece {
+        fn execute(self: Box<Self>, _: &mut DndState, tx: &EventSender<Signal>) {
+            let Self(piece) = *self;
+
+            tx.send(DndMessage::BoardMessage(BoardMessage::AddPiece(piece)).into())
+        }
+    }
+
+    /*
     pub struct PieceParams {
         pub pos: Pos2,
         pub size: Vec2,
@@ -327,6 +362,7 @@ pub mod commands {
             )
         }
     }
+    */
 
     pub fn snap_to_grid(pos: Pos2) -> Pos2 {
         // Get back to a grid cell count

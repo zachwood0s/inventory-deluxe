@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use emath::Pos2;
 use uuid::Uuid;
 
-use crate::{Ability, Character, DndPlayerPiece, Item, User};
+use crate::{board::BoardPiece, Ability, Character, DndPlayerPiece, Item, User};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Log {
@@ -37,6 +37,9 @@ pub enum LogMessage {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum BoardMessage {
+    AddPiece(BoardPiece),
+    UpdatePiece(BoardPiece),
+
     AddPlayerPiece(Uuid, DndPlayerPiece),
     UpdatePlayerPiece(Uuid, DndPlayerPiece),
     UpdatePlayerLocation(Uuid, Pos2),

@@ -943,6 +943,7 @@ dependencies = [
  "bincode",
  "derive_more",
  "emath",
+ "itertools 0.13.0",
  "serde",
  "typetag",
  "uuid",

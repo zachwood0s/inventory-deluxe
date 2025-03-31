@@ -1,5 +1,8 @@
 use board_render::{BoardRender, Grid, RenderContext};
-use common::SortingLayer;
+use common::{
+    board::{BoardPiece, BoardPieceSet, PieceId},
+    SortingLayer,
+};
 use egui::{
     epaint::PathStroke, Color32, DragValue, Frame, Image, Painter, Pos2, Rect, Response, Rounding,
     Shape, Stroke, Vec2, Widget,
@@ -7,21 +10,18 @@ use egui::{
 use emath::RectTransform;
 use itertools::Itertools;
 use log::info;
+use properties_window::PropertiesDisplay;
 use uuid::Uuid;
 
 use crate::{
     listener::CommandQueue,
     state::{
-        board::{
-            self,
-            commands::PieceParams,
-            pieces::{BoardPieceImpl, BoardPieceSet, PieceId},
-        },
+        board::{self, commands::AddPiece},
         DndState,
     },
 };
 
-use super::{multi_select::MultiSelect, DndTabImpl};
+use super::DndTabImpl;
 
 pub mod board_render;
 pub mod properties_window;
@@ -57,10 +57,17 @@ pub struct SelectionState {
     dragged: Option<PieceId>,
 }
 
+#[derive(Default, Clone, Copy)]
+pub struct InputState {
+    board_mouse_pos: Pos2,
+    screen_mouse_pos: Pos2,
+}
+
 pub struct UiBoardState {
     grid: Grid,
 
     selection: SelectionState,
+    input: InputState,
 
     view_origin: Pos2,
     zoom: f32,
@@ -72,6 +79,7 @@ impl Default for UiBoardState {
             grid: Grid::new(0.1),
 
             selection: SelectionState::default(),
+            input: InputState::default(),
 
             view_origin: Pos2::default(),
             zoom: 1.0,
@@ -80,19 +88,74 @@ impl Default for UiBoardState {
 }
 
 impl UiBoardState {
-    fn view_properties<'a>(&self, piece_set: &'a BoardPieceSet) -> Option<&'a dyn BoardPieceImpl> {
+    fn view_properties<'a>(&self, piece_set: &'a mut BoardPieceSet) -> Option<&'a mut BoardPiece> {
         let piece_id = self.selection.view_properties?;
 
-        piece_set.get_piece(&piece_id)
+        piece_set.get_piece_mut(&piece_id)
+    }
+
+    fn clear_selected(&mut self) {
+        self.selection.selected = None;
+        self.selection.view_properties = None;
+    }
+
+    fn handle_zoom(&mut self, ui: &mut egui::Ui) {
+        const ZOOM_FACTOR: f32 = 0.01;
+        const MAX_ZOOM: f32 = 10.0;
+        const MIN_ZOOM: f32 = 0.5;
+        self.zoom /= (ui.input(|i| i.smooth_scroll_delta.y) * ZOOM_FACTOR) + 1.0;
+        self.zoom = self.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
     }
 
     fn handle_board_input(
         &mut self,
-        ctx: &RenderContext,
+        ctx: &mut RenderContext,
         response: &Response,
-        state: &DndState,
+        piece_set: &BoardPieceSet,
         commands: &mut CommandQueue,
     ) {
+        self.handle_zoom(ctx.ui);
+
+        if let Some(pos) = response.interact_pointer_pos() {
+            self.input.screen_mouse_pos = pos;
+            self.input.board_mouse_pos = ctx.to_grid * (ctx.from_screen * pos);
+        }
+
+        // Handle Dragging
+        if response.dragged_by(egui::PointerButton::Middle) {
+            let screen_origin = ctx.to_screen * self.view_origin;
+            self.view_origin = ctx.from_screen * (screen_origin - response.drag_delta());
+        }
+
+        // Handle selection of a piece
+        if response.clicked_by(egui::PointerButton::Primary) {
+            let selected_idx = piece_set.get_topmost_piece_at_position(self.input.board_mouse_pos);
+
+            info!("New selected {selected_idx:?}");
+
+            if selected_idx.is_some() {
+                self.selection.selected = selected_idx.copied();
+            } else {
+                self.clear_selected();
+            }
+        }
+
+        response.context_menu(|ui| {
+            if let Some(selected) = self.selection.selected {
+                if ui.button("View Properties").clicked() {
+                    self.selection.view_properties = Some(selected);
+                }
+            } else if ui.button("Add Piece").clicked() {
+                let new_id = PieceId::default();
+                self.selection.view_properties = Some(new_id);
+                self.selection.selected = Some(new_id);
+
+                let new_rect = self.grid.unit_rect(self.input.board_mouse_pos);
+                let new_piece = BoardPiece::from_rect(new_id, new_rect);
+
+                commands.add(AddPiece(new_piece))
+            }
+        });
     }
 
     fn ui_content(
@@ -112,20 +175,26 @@ impl UiBoardState {
             response.rect,
         );
 
-        let ctx = RenderContext {
+        let from_grid = self.grid.from_grid();
+
+        let mut ctx = RenderContext {
             ui,
             painter,
             selection_state: self.selection,
+            from_grid,
+            to_grid: from_grid.inverse(),
             to_screen,
             from_screen: to_screen.inverse(),
             render_dimensions,
         };
 
-        self.handle_board_input(&ctx, &response, state, commands);
-        self.grid.render(&ctx);
-        state.backend_board.pieces.render(&ctx);
+        let mut board = state.client_board.lock().unwrap();
 
-        if let Some(piece) = self.view_properties(&state.backend_board.pieces) {
+        self.handle_board_input(&mut ctx, &response, &board.piece_set, commands);
+        self.grid.render(&ctx);
+        board.piece_set.render(&ctx);
+
+        if let Some(piece) = self.view_properties(&mut board.piece_set) {
             piece.display_props(ui);
         }
 
@@ -275,6 +344,7 @@ impl Board {
                         * Board::GRID_SIZE,
                 );
 
+                /*
                 commands.add(board::commands::AddPiece {
                     params: PieceParams {
                         pos: center_rect.left_top(),
@@ -285,6 +355,7 @@ impl Board {
                         locked: false,
                     },
                 });
+                */
 
                 self.highlight_start_pos = None;
             }
@@ -360,6 +431,7 @@ impl Board {
                             Some(self.new_url.clone())
                         };
 
+                        /*
                         commands.add(board::commands::UpdatePiece {
                             piece_id: selected,
                             params: PieceParams {
@@ -371,6 +443,7 @@ impl Board {
                                 locked: self.locked,
                             },
                         });
+                        */
                     }
                 } else if ui.button("Add").clicked() {
                     info!("Adding {} {}", from_screen * self.mouse_pos, self.mouse_pos);
@@ -381,6 +454,7 @@ impl Board {
                         Some(self.new_url.clone())
                     };
 
+                    /*
                     commands.add(board::commands::AddPiece {
                         params: PieceParams {
                             pos: from_screen * self.mouse_pos,
@@ -391,6 +465,7 @@ impl Board {
                             locked: self.locked,
                         },
                     });
+                    */
                 }
             });
 
@@ -459,6 +534,16 @@ impl Board {
         const MIN_ZOOM: f32 = 0.5;
         self.zoom /= (ui.input(|i| i.smooth_scroll_delta.y) * ZOOM_FACTOR) + 1.0;
         self.zoom = self.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+    }
+}
+
+impl DndTabImpl for UiBoardState {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, commands: &mut CommandQueue) {
+        Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui, state, commands));
+    }
+
+    fn title(&self) -> String {
+        "BoardNew".to_owned()
     }
 }
 

@@ -12,3 +12,4 @@ uuid = { workspace = true }
 emath = { workspace = true }
 typetag = { workspace = true }
 derive_more = { workspace = true }
+itertools = { workspace = true }

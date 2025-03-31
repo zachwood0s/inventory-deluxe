@@ -2,6 +2,7 @@ use std::fmt::{Debug, Display};
 
 use emath::{Pos2, Vec2};
 
+pub mod board;
 pub mod message;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

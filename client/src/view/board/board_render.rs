@@ -1,12 +1,10 @@
+use common::board::{BoardPiece, BoardPieceData, BoardPieceSet, PlayerPieceData};
 use egui::{
     epaint::PathStroke, Color32, Image, Painter, Pos2, Rect, Rounding, Shape, Stroke,
     TextureOptions, Ui, Vec2,
 };
 use emath::RectTransform;
-
-use crate::state::board::pieces::{
-    BoardPiece, BoardPieceSet, InternalDecorationData, MapPieceData, PlayerPieceData,
-};
+use log::info;
 
 use super::SelectionState;
 
@@ -14,6 +12,8 @@ pub struct RenderContext<'r> {
     pub ui: &'r mut egui::Ui,
     pub painter: Painter,
     pub selection_state: SelectionState,
+    pub from_grid: RectTransform,
+    pub to_grid: RectTransform,
     pub to_screen: RectTransform,
     pub from_screen: RectTransform,
     pub render_dimensions: Vec2,
@@ -23,12 +23,10 @@ pub trait BoardRender {
     fn render(&self, render_context: &RenderContext);
 }
 
-impl<T> BoardRender for BoardPiece<T>
-where
-    T: ChildRender,
-{
+impl BoardRender for BoardPiece {
     fn render(&self, ctx: &RenderContext) {
-        let transformed = ctx.to_screen.transform_rect(self.rect);
+        let transformed = ctx.from_grid.transform_rect(self.rect);
+        let transformed = ctx.to_screen.transform_rect(transformed);
 
         let mut alpha = u8::MAX;
         if Some(self.id) == ctx.selection_state.dragged {
@@ -58,22 +56,21 @@ where
             );
         }
 
-        self.data.render(ctx, self.rect);
+        match &self.data {
+            BoardPieceData::Player(data) => data.render(ctx, self),
+            BoardPieceData::None => {}
+        }
     }
 }
 
 pub trait ChildRender {
     #[allow(unused)]
-    fn render(&self, render_context: &RenderContext, parent_rect: Rect) {}
+    fn render(&self, render_context: &RenderContext, parent: &BoardPiece) {}
 }
 
 impl ChildRender for PlayerPieceData {
-    fn render(&self, render_context: &RenderContext, parent_rect: Rect) {}
+    fn render(&self, render_context: &RenderContext, parent: &BoardPiece) {}
 }
-
-impl ChildRender for MapPieceData {}
-
-impl ChildRender for InternalDecorationData {}
 
 pub struct Grid {
     grid_size: f32,
@@ -84,8 +81,19 @@ impl Grid {
     pub fn new(grid_size: f32) -> Self {
         Self {
             grid_size,
-            visible: false,
+            visible: true,
         }
+    }
+
+    pub fn unit_rect(&self, top_left: Pos2) -> Rect {
+        Rect::from_two_pos(top_left, top_left + Vec2::new(1.0, 1.0))
+    }
+
+    pub fn from_grid(&self) -> RectTransform {
+        RectTransform::from_to(
+            Rect::from_min_size(Pos2::ZERO, Vec2::new(1.0, 1.0)),
+            Rect::from_min_size(Pos2::ZERO, Vec2::new(self.grid_size, self.grid_size)),
+        )
     }
 }
 

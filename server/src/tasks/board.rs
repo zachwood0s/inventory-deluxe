@@ -23,6 +23,49 @@ pub struct BoardData {
     players: Arc<RwLock<PlayerLookup>>,
 }
 
+#[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
+pub struct ServerBoardData {
+    #[serde(skip)]
+    dirty: Arc<AtomicBool>,
+    board: Arc<RwLock<common::board::BoardData>>,
+}
+
+impl ServerBoardData {
+    fn process_message(&self, board_message: BoardMessage) -> Result<(), ServerError> {
+        self.mark_dirty();
+        let mut board = self.board.write().unwrap();
+
+        match board_message {
+            BoardMessage::AddPiece(piece) => {
+                board.piece_set.add_or_update_piece(piece);
+            }
+            BoardMessage::UpdatePiece(piece) => {
+                board.piece_set.add_or_update_piece(piece);
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn mark_dirty(&self) {
+        self.dirty.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn mark_clean(&self) {
+        self.dirty.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    pub fn overwrite_board_data(&self, new_data: common::board::BoardData) {
+        let mut players = self.board.write().unwrap();
+        *players = new_data;
+    }
+}
+
 impl BoardData {
     fn process_message(&self, board_message: BoardMessage) -> Result<(), ServerError> {
         self.mark_dirty();
@@ -52,6 +95,7 @@ impl BoardData {
             BoardMessage::ClearBoard => {
                 unreachable!("Server should not be instructed to clear board")
             }
+            _ => {}
         }
 
         Ok(())
@@ -152,7 +196,7 @@ impl ServerTask for LoadBoard {
 
         #[derive(serde::Deserialize)]
         struct ServerData {
-            data: BoardData,
+            data: common::board::BoardData,
         }
 
         let data = resp.text_with_error().await?;
@@ -202,19 +246,19 @@ impl ServerTask for BroadcastAllBoardData {
     async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
         // TODO: It would be better if the client and server had same representation of board so
         // that I could send the full state and not individual commands for each piece
-        for (uuid, player) in server.board_data.get_players_owned().into_iter() {
-            let message = DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(uuid, player));
+        //for (uuid, player) in server.board_data.get_players_owned().into_iter() {
+        //    let message = DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(uuid, player));
 
-            let output_data = bincode::serialize(&message)?;
+        //    let output_data = bincode::serialize(&message)?;
 
-            server.users.foreach(|(_name, user)| {
-                server
-                    .handler
-                    .network()
-                    .send(user.endpoint, &output_data)
-                    .to_error()
-            })?;
-        }
+        //    server.users.foreach(|(_name, user)| {
+        //        server
+        //            .handler
+        //            .network()
+        //            .send(user.endpoint, &output_data)
+        //            .to_error()
+        //    })?;
+        //}
 
         Ok(())
     }
@@ -223,17 +267,17 @@ impl ServerTask for BroadcastAllBoardData {
 pub struct SendInitialBoardData;
 impl ServerTask for SendInitialBoardData {
     async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
-        for (uuid, player) in server.board_data.get_players_owned().into_iter() {
-            let message = DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(uuid, player));
+        //for (uuid, player) in server.board_data.get_players_owned().into_iter() {
+        //    let message = DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(uuid, player));
 
-            let output_data = bincode::serialize(&message)?;
+        //    let output_data = bincode::serialize(&message)?;
 
-            server
-                .handler
-                .network()
-                .send(endpoint, &output_data)
-                .to_error()?;
-        }
+        //    server
+        //        .handler
+        //        .network()
+        //        .send(endpoint, &output_data)
+        //        .to_error()?;
+        //}
 
         Ok(())
     }
@@ -252,7 +296,7 @@ impl ServerTask for GetLatestBoardData {
 
         #[derive(serde::Deserialize)]
         struct ServerData {
-            data: BoardData,
+            data: common::board::BoardData,
         }
 
         let data = resp.text_with_error().await?;

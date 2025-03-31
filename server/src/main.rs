@@ -24,7 +24,10 @@ use postgrest::Postgrest;
 mod db_types;
 mod tasks;
 use db_types::*;
-use tasks::{board::BoardData, ServerTask};
+use tasks::{
+    board::{BoardData, ServerBoardData},
+    ServerTask,
+};
 use thiserror::Error;
 
 const AUTOSAVE_TIME_IN_SECS: u64 = 30;
@@ -143,7 +146,7 @@ enum ServerError {
 
 pub struct DndServer {
     handler: NodeHandler<Signal>,
-    board_data: BoardData,
+    board_data: ServerBoardData,
     self_endpoint: Endpoint,
     node_listener: Option<NodeListener<Signal>>,
     users: UserData,
@@ -182,10 +185,10 @@ impl DndServer {
             self_endpoint,
             node_listener: Some(node_listener),
             users: UserData::default(),
-            board_data: BoardData::default(),
+            board_data: ServerBoardData::default(),
         };
 
-        server.process_task(server.self_endpoint, tasks::board::GetLatestBoardData);
+        //server.process_task(server.self_endpoint, tasks::board::GetLatestBoardData);
 
         Ok(server)
     }

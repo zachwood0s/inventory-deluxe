@@ -11,7 +11,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            pixels_per_point: 1.5,
+            pixels_per_point: 1.2,
         }
     }
 }
