@@ -96,7 +96,7 @@ pub trait ChildRender {
 }
 
 impl ChildRender for CharacterPieceData {
-    fn render(&self, render_context: &RenderContext, parent: &BoardPiece) {}
+    fn render(&self, _: &RenderContext, _: &BoardPiece) {}
 }
 
 pub struct Grid {

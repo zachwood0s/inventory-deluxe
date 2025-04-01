@@ -1,19 +1,15 @@
 use std::fmt::Display;
 
 use crate::state::character::commands::{CharacterHealth, RefreshCharacter, ToggleSkill};
-use egui::{
-    Align, Color32, Frame, Margin, Resize, RichText, Widget
-};
+use egui::{Align, Color32, Frame, Margin, Resize, RichText, Widget};
 use egui_extras::{Column, TableBuilder};
 
-use crate::{
-    listener::CommandQueue,
-    state::DndState,
-};
+use crate::{listener::CommandQueue, state::DndState};
 
 use super::DndTabImpl;
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 enum CharStat {
     Cha,
     Str,
@@ -218,18 +214,19 @@ impl DndTabImpl for Character {
                 }
                 let max_hp = self.temp_max_hp.as_mut().unwrap();
                 let curr_hp = self.temp_curr_hp.as_mut().unwrap();
-                let curr_hp_resp = egui::DragValue::new(curr_hp)
-                    .range(0..=char.max_hp)
-                    .ui(ui);
+                let curr_hp_resp = egui::DragValue::new(curr_hp).range(0..=char.max_hp).ui(ui);
                 ui.label("/");
-                let max_hp_resp = egui::DragValue::new(max_hp)
-                    .range(0..=u16::MAX)
-                    .ui(ui);
+                let max_hp_resp = egui::DragValue::new(max_hp).range(0..=u16::MAX).ui(ui);
                 ui.label("hp");
-                let curr_focus_lost = curr_hp_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                let max_focus_lost = max_hp_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                if curr_focus_lost || curr_hp_resp.drag_stopped() ||
-                   max_focus_lost || max_hp_resp.drag_stopped()  {
+                let curr_focus_lost =
+                    curr_hp_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let max_focus_lost =
+                    max_hp_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                if curr_focus_lost
+                    || curr_hp_resp.drag_stopped()
+                    || max_focus_lost
+                    || max_hp_resp.drag_stopped()
+                {
                     commands.add(CharacterHealth::new(*curr_hp, *max_hp));
                 }
             });

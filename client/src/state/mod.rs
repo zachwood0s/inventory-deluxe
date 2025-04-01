@@ -1,4 +1,3 @@
-
 use board::ClientBoard;
 use common::{message::DndMessage, User};
 
@@ -22,6 +21,7 @@ impl DndState {
         self.character.process(&message);
         self.client_board.process(&message);
 
+        #[allow(clippy::single_match)]
         match message {
             DndMessage::CharacterList(list) => self.character_list = list,
             _ => {}

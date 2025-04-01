@@ -1,8 +1,6 @@
-
 use common::Ability;
 use egui::{
-    collapsing_header, epaint, Color32, DragValue, NumExt,
-    ScrollArea, Sense, Vec2, Widget,
+    collapsing_header, epaint, Color32, DragValue, NumExt, ScrollArea, Sense, Vec2, Widget,
 };
 
 use crate::{
@@ -104,7 +102,7 @@ struct AbilityWidget<'a, 'c> {
     commands: &'a mut CommandQueue<'c>,
 }
 
-impl<'a, 'c> Widget for AbilityWidget<'a, 'c> {
+impl Widget for AbilityWidget<'_, '_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let ability = self.ability;
         let id = egui::Id::new(&ability.name);

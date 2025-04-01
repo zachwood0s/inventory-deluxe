@@ -83,7 +83,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         }
         if ui.button("Abilities").clicked() {
             self.added_nodes
-                .push(DndTab::from_tab(Abilities::default(), surface, node))
+                .push(DndTab::from_tab(Abilities, surface, node))
         }
         if ui.button("Items").clicked() {
             self.added_nodes

@@ -34,7 +34,7 @@ impl<'a, F: FnMut(&mut Ui, &str) -> Response> MultiSelect<'a, F> {
     }
 }
 
-impl<'a, F: FnMut(&mut Ui, &str) -> Response> Widget for MultiSelect<'a, F> {
+impl<F: FnMut(&mut Ui, &str) -> Response> Widget for MultiSelect<'_, F> {
     fn ui(self, ui: &mut Ui) -> Response {
         let Self {
             popup_id,

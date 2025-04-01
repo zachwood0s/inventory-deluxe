@@ -125,7 +125,6 @@ impl BoardData {
             BoardMessage::DeletePiece(piece) => {
                 self.piece_set.remove(&piece);
             }
-            _ => {}
         }
     }
 }

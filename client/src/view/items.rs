@@ -27,7 +27,7 @@ impl<'a, 'b, 'c> ItemWidget<'a, 'b, 'c> {
     }
 }
 
-impl<'a, 'b, 'c> Widget for ItemWidget<'a, 'b, 'c> {
+impl Widget for ItemWidget<'_, '_, '_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let mut item_text =
             LayoutJob::single_section(self.item.name.clone(), egui::TextFormat::default());

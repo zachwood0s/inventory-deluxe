@@ -127,8 +127,6 @@ enum Signal {
 enum ServerError {
     #[error("No board saves exist, starting fresh!")]
     NoBoardSaves,
-    #[error("Player {0} could not be found on the server!")]
-    PlayerNotFound(uuid::Uuid),
     #[error("Failed to send server response: {0:?}")]
     ResponseError(SendStatus),
     #[error("User already exists: {0}")]
