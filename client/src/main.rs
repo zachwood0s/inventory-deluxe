@@ -9,7 +9,7 @@ use std::{
 use common::{message::DndMessage, User};
 use eframe::egui;
 use egui::{CentralPanel, Window};
-use egui_dock::{tab_viewer, DockArea, DockState, NodeIndex, SurfaceIndex};
+use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex};
 use listener::{CommandQueue, DndListener, Signal};
 use message_io::events::EventSender;
 use state::DndState;

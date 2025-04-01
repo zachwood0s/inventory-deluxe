@@ -1,4 +1,4 @@
-use egui::{InnerResponse, Margin, Rounding, Style, Ui, Widget};
+use egui::{InnerResponse, Margin, Rounding, Style, Ui};
 
 pub struct Emphasized;
 

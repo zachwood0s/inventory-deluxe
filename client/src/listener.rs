@@ -1,7 +1,6 @@
 use std::{
-    collections::HashMap,
     io,
-    sync::mpsc::{Receiver, Sender},
+    sync::mpsc::Sender,
 };
 
 use common::{

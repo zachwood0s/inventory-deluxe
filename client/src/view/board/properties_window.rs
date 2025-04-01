@@ -3,7 +3,6 @@ use std::ops::RangeInclusive;
 
 use common::board::{BoardPiece, BoardPieceData, CharacterPieceData};
 use egui::{DragValue, Margin, Pos2, Rect, RichText, Style, TextEdit, Ui, WidgetText, Window};
-use log::info;
 
 use crate::state::DndState;
 

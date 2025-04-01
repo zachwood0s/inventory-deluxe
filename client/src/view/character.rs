@@ -1,18 +1,14 @@
 use std::fmt::Display;
 
-use crate::{
-    prelude::*,
-    state::character::commands::{CharacterHealth, RefreshCharacter, ToggleSkill},
-};
+use crate::state::character::commands::{CharacterHealth, RefreshCharacter, ToggleSkill};
 use egui::{
-    collapsing_header, popup_below_widget, text::LayoutJob, tooltip_id, Align, Button, CentralPanel, CollapsingHeader, Color32, DragValue, Frame, Label, Margin, ProgressBar, Resize, RichText, Rounding, TextBuffer, TextEdit, TopBottomPanel, Vec2, Widget
+    Align, Color32, Frame, Margin, Resize, RichText, Widget
 };
 use egui_extras::{Column, TableBuilder};
-use serde::de::IntoDeserializer;
 
 use crate::{
     listener::CommandQueue,
-    state::{character::commands::UseItem, DndState},
+    state::DndState,
 };
 
 use super::DndTabImpl;

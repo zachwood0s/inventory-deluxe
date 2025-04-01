@@ -1,4 +1,3 @@
-use futures::{future::try_join, try_join, FutureExt};
 use message_io::network::Endpoint;
 
 use crate::{DndServer, ToError};

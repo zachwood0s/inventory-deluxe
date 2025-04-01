@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{atomic::AtomicBool, Arc, RwLock},
-};
+use std::sync::{atomic::AtomicBool, Arc, RwLock};
 
 use common::message::{BoardMessage, DndMessage, LoadBoard, Log, LogMessage, SaveBoard};
 use log::info;

@@ -1,7 +1,4 @@
-use common::{
-    message::{DndMessage, Log, LogMessage},
-    User,
-};
+use common::message::{DndMessage, Log};
 use log::debug;
 use message_io::network::Endpoint;
 

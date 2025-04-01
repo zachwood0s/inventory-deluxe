@@ -1,13 +1,9 @@
-use core::f32;
-use std::{collections::HashMap, hash::Hash};
 
 use common::Ability;
 use egui::{
-    collapsing_header, epaint, vec2, Color32, DragValue, NumExt, RadioButton, Resize, RichText,
-    ScrollArea, Sense, TextBuffer, Vec2, Widget,
+    collapsing_header, epaint, Color32, DragValue, NumExt,
+    ScrollArea, Sense, Vec2, Widget,
 };
-use itertools::Itertools;
-use log::info;
 
 use crate::{
     listener::CommandQueue,

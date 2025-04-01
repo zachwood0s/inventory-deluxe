@@ -1,6 +1,6 @@
 use crate::{prelude::*, widgets::frames::Emphasized};
 use comand_parser::{ChatCommandParser, ToDndMessge};
-use egui::{text::LayoutJob, Align, Color32, FontSelection, Margin, RichText, Rounding, Style};
+use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
 use itertools::Itertools;
 
 pub struct ClientLogMessage {
@@ -262,7 +262,7 @@ mod comand_parser {
 pub mod commands {
     use common::message::{DieRoll, DndMessage, Log, LogMessage, SingleDieRoll};
     use itertools::Itertools;
-    use log::info;
+    
     use once_cell::sync::Lazy;
     use rand::Rng;
     use regex::Regex;

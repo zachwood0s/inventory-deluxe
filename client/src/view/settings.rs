@@ -1,4 +1,4 @@
-use egui::{DragValue, Slider};
+use egui::DragValue;
 
 use crate::prelude::*;
 

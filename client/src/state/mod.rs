@@ -1,7 +1,6 @@
-use std::sync::{Arc, Mutex};
 
 use board::ClientBoard;
-use common::{board::BoardData, message::DndMessage, User};
+use common::{message::DndMessage, User};
 
 pub mod abilities;
 pub mod board;

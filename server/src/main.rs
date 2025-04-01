@@ -1,17 +1,15 @@
 use std::{
-    collections::{hash_map::Values, HashMap},
-    error::Error,
+    collections::HashMap,
     io,
-    net::{SocketAddr, ToSocketAddrs},
-    sync::{atomic::AtomicBool, Arc, Mutex, RwLock, RwLockReadGuard},
+    net::ToSocketAddrs,
+    sync::{Arc, RwLock},
     time::Duration,
 };
 
 use anyhow::anyhow;
-use emath::Pos2;
-use log::{error, info, warn};
+use log::{error, info};
 use message_io::{
-    network::{Endpoint, NetEvent, ResourceId, SendStatus, Transport},
+    network::{Endpoint, NetEvent, SendStatus, Transport},
     node::{self, NodeHandler, NodeListener},
 };
 

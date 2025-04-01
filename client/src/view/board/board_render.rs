@@ -3,10 +3,9 @@ use core::f32;
 use common::board::{BoardPiece, BoardPieceData, BoardPieceSet, CharacterPieceData};
 use egui::{
     epaint::PathStroke, Color32, Image, Painter, Pos2, Rect, Rgba, Rounding, Shape, Stroke,
-    TextStyle, TextureOptions, Ui, Vec2,
+    TextStyle, TextureOptions, Vec2,
 };
 use emath::RectTransform;
-use log::info;
 
 use super::SelectionState;
 
