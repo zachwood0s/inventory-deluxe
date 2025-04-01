@@ -10,7 +10,7 @@ use egui::{
 use emath::RectTransform;
 use itertools::Itertools;
 use log::info;
-use properties_window::PropertiesDisplay;
+use properties_window::{PropertiesCtx, PropertiesDisplay};
 use uuid::Uuid;
 
 use crate::{
@@ -211,8 +211,17 @@ impl UiBoardState {
         self.grid.render(&ctx);
         board.piece_set.render(&ctx);
 
+        let mut ctx = PropertiesCtx {
+            state,
+            changed: false,
+        };
+
         if let Some(piece) = self.view_properties(&mut board.piece_set) {
-            piece.display_props(ui, state);
+            piece.display_props(ui, &mut ctx);
+        }
+
+        if ctx.changed {
+            info!("Changed!");
         }
 
         response

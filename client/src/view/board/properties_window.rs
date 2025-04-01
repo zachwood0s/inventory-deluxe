@@ -3,24 +3,30 @@ use std::ops::RangeInclusive;
 
 use common::board::{BoardPiece, BoardPieceData, PlayerPieceData};
 use egui::{DragValue, Margin, Pos2, Rect, RichText, Style, TextEdit, Ui, WidgetText, Window};
+use log::info;
 
 use crate::state::DndState;
 
+pub struct PropertiesCtx<'a> {
+    pub state: &'a DndState,
+    pub changed: bool,
+}
+
 pub trait PropertiesDisplay {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState);
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx);
 }
 
 impl<T> PropertiesDisplay for &mut T
 where
     T: PropertiesDisplay,
 {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
-        (*self).display_props(ui, state)
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
+        (*self).display_props(ui, ctx)
     }
 }
 
 impl PropertiesDisplay for BoardPiece {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let title = RichText::new("Properties").text_style(egui::TextStyle::Body);
         let frame =
             egui::Frame::window(&Style::default()).inner_margin(Margin::symmetric(6.0, 4.0));
@@ -36,20 +42,20 @@ impl PropertiesDisplay for BoardPiece {
                     format!("{} General", egui_phosphor::regular::SLIDERS),
                     |ui| {
                         egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                            LabeledRow("Name", &mut self.name).display_props(ui, state);
-                            self.rect.display_props(ui, state);
+                            LabeledRow("Name", &mut self.name).display_props(ui, ctx);
+                            self.rect.display_props(ui, ctx);
                             LabeledRow("Sorting Layer", &mut self.sorting_layer)
-                                .display_props(ui, state);
+                                .display_props(ui, ctx);
                             LabeledRow("Piece Type", &mut PieceSelector(&mut self.data))
-                                .display_props(ui, state);
+                                .display_props(ui, ctx);
                         });
                     },
                 );
 
                 ui.collapsing(format!("{} Display", egui_phosphor::regular::IMAGE), |ui| {
                     egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                        LabeledRow("Image", &mut self.image_url).display_props(ui, state);
-                        LabeledRow("Color", &mut self.color).display_props(ui, state);
+                        LabeledRow("Image", &mut self.image_url).display_props(ui, ctx);
+                        LabeledRow("Color", &mut self.color).display_props(ui, ctx);
                     });
                 });
 
@@ -57,14 +63,14 @@ impl PropertiesDisplay for BoardPiece {
                     format!("{} Grid", egui_phosphor::regular::DOTS_NINE),
                     |ui| {
                         egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                            self.snap_to_grid.display_props(ui, state);
-                            LabeledRow("Locked", &mut self.locked).display_props(ui, state);
+                            self.snap_to_grid.display_props(ui, ctx);
+                            LabeledRow("Locked", &mut self.locked).display_props(ui, ctx);
                         });
                     },
                 );
 
                 match &mut self.data {
-                    BoardPieceData::Player(data) => data.display_props(ui, state),
+                    BoardPieceData::Player(data) => data.display_props(ui, ctx),
                     BoardPieceData::None => {}
                 }
             });
@@ -72,14 +78,14 @@ impl PropertiesDisplay for BoardPiece {
 }
 
 impl PropertiesDisplay for PlayerPieceData {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         ui.collapsing(format!("{} Player", egui_phosphor::regular::PERSON), |ui| {
             egui::Grid::new("general").num_columns(3).show(ui, |ui| {
                 LabeledRow(
                     "Link Stats",
                     &mut PlayerNameSelector(&mut self.link_stats_to),
                 )
-                .display_props(ui, state);
+                .display_props(ui, ctx);
             });
         });
     }
@@ -88,13 +94,13 @@ impl PropertiesDisplay for PlayerPieceData {
 const NUM_INPUT_WIDTH: f32 = 60.0;
 
 impl PropertiesDisplay for Rect {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let mut new_min = self.min;
         let mut dims = self.size().to_pos2();
 
         LabeledRow("Position", &mut RangedPos(&mut new_min, -1000.0..=1000.0))
-            .display_props(ui, state);
-        LabeledRow("Dimensions", &mut RangedPos(&mut dims, 0.5..=100.0)).display_props(ui, state);
+            .display_props(ui, ctx);
+        LabeledRow("Dimensions", &mut RangedPos(&mut dims, 0.5..=100.0)).display_props(ui, ctx);
 
         *self = self.translate(new_min - self.min);
         self.set_width(dims.x);
@@ -112,64 +118,47 @@ where
     T: PropertiesDisplay,
     L: Into<WidgetText> + Copy,
 {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         ui.label(self.0);
-        self.1.display_props(ui, state);
+        self.1.display_props(ui, ctx);
         ui.end_row();
-    }
-}
-
-struct RangedNum<'a, Num>(&'a mut Num, RangeInclusive<Num>)
-where
-    Num: emath::Numeric;
-
-impl<Num> PropertiesDisplay for RangedNum<'_, Num>
-where
-    Num: emath::Numeric,
-{
-    fn display_props(&mut self, ui: &mut Ui, _: &DndState) {
-        let Self(val, range) = self;
-        ui.add_sized(
-            [NUM_INPUT_WIDTH, 20.0],
-            DragValue::new(*val).range(range.clone()),
-        );
     }
 }
 
 struct RangedPos<'a>(&'a mut Pos2, RangeInclusive<f32>);
 
 impl PropertiesDisplay for RangedPos<'_> {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let Self(pos, range) = self;
 
         ui.horizontal(|ui| {
-            RangedNum(&mut pos.x, range.clone()).display_props(ui, state);
-            RangedNum(&mut pos.y, range.clone()).display_props(ui, state);
+            RangedNum(&mut pos.x, range.clone()).display_props(ui, ctx);
+            RangedNum(&mut pos.y, range.clone()).display_props(ui, ctx);
         });
     }
 }
 
 impl PropertiesDisplay for Pos2 {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
-        RangedPos(self, f32::NEG_INFINITY..=f32::INFINITY).display_props(ui, state);
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
+        RangedPos(self, f32::NEG_INFINITY..=f32::INFINITY).display_props(ui, ctx);
     }
 }
 
 impl PropertiesDisplay for common::board::SortingLayer {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
-        RangedNum(&mut self.0, 0..=10).display_props(ui, state);
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
+        RangedNum(&mut self.0, 0..=10).display_props(ui, ctx);
     }
 }
 
 impl PropertiesDisplay for common::board::GridSnap {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let mut is_snap = self.is_snap();
 
-        LabeledRow("Snap to Grid", &mut is_snap).display_props(ui, state);
+        LabeledRow("Snap to Grid", &mut is_snap).display_props(ui, ctx);
 
         match self {
             common::board::GridSnap::MajorSpacing(x) if is_snap => {
-                LabeledRow("Major Spacing", &mut RangedNum(x, 0.5..=10.0)).display_props(ui, state);
+                LabeledRow("Major Spacing", &mut RangedNum(x, 0.5..=10.0)).display_props(ui, ctx);
             }
             common::board::GridSnap::None if is_snap => {
                 // On this frame just set the spacing, next frame the
@@ -182,28 +171,30 @@ impl PropertiesDisplay for common::board::GridSnap {
 }
 
 impl PropertiesDisplay for String {
-    fn display_props(&mut self, ui: &mut Ui, _: &DndState) {
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let width = NUM_INPUT_WIDTH * 2.0 + ui.spacing().item_spacing.x;
-        ui.add_sized([width, 20.0], TextEdit::singleline(self));
+        ctx.changed |= ui
+            .add_sized([width, 20.0], TextEdit::singleline(self))
+            .changed();
     }
 }
 
 impl PropertiesDisplay for common::board::Color {
-    fn display_props(&mut self, ui: &mut Ui, _: &DndState) {
-        ui.color_edit_button_rgba_unmultiplied(&mut *self);
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
+        ctx.changed |= ui.color_edit_button_rgba_unmultiplied(&mut *self).changed()
     }
 }
 
 impl PropertiesDisplay for bool {
-    fn display_props(&mut self, ui: &mut Ui, _: &DndState) {
-        ui.checkbox(&mut *self, "");
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
+        ctx.changed |= ui.checkbox(&mut *self, "").changed();
     }
 }
 
 struct PieceSelector<'a>(&'a mut BoardPieceData);
 impl PropertiesDisplay for PieceSelector<'_> {
-    fn display_props(&mut self, ui: &mut Ui, _: &DndState) {
-        egui::ComboBox::from_id_salt("type_selection")
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
+        ctx.changed |= egui::ComboBox::from_id_salt("type_selection")
             .selected_text(format!("{}", self.0))
             .show_ui(ui, |ui| {
                 ui.selectable_value(self.0, BoardPieceData::None, "None");
@@ -212,22 +203,47 @@ impl PropertiesDisplay for PieceSelector<'_> {
                     BoardPieceData::Player(PlayerPieceData::default()),
                     "Player",
                 );
-            });
+            })
+            .response
+            .changed();
     }
 }
 
 struct PlayerNameSelector<'a>(&'a mut Option<String>);
 impl PropertiesDisplay for PlayerNameSelector<'_> {
-    fn display_props(&mut self, ui: &mut Ui, state: &DndState) {
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let default = String::from("None");
         let selected_text = self.0.as_ref().unwrap_or(&default);
-        egui::ComboBox::from_id_salt("stats_from_selection")
+        ctx.changed |= egui::ComboBox::from_id_salt("stats_from_selection")
             .selected_text(selected_text)
             .show_ui(ui, |ui| {
                 ui.selectable_value(self.0, None, "None");
-                for character in state.character_list.iter() {
+                for character in ctx.state.character_list.iter() {
                     ui.selectable_value(self.0, Some(character.clone()), character);
                 }
-            });
+            })
+            .response
+            .changed();
+    }
+}
+
+struct RangedNum<'a, Num>(&'a mut Num, RangeInclusive<Num>)
+where
+    Num: emath::Numeric;
+
+impl<Num> PropertiesDisplay for RangedNum<'_, Num>
+where
+    Num: emath::Numeric,
+{
+    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
+        let Self(val, range) = self;
+        let resp = ui.add_sized(
+            [NUM_INPUT_WIDTH, 20.0],
+            DragValue::new(*val).range(range.clone()),
+        );
+
+        if resp.changed() || resp.drag_stopped() {
+            ctx.changed |= !resp.dragged();
+        }
     }
 }
