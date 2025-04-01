@@ -203,8 +203,10 @@ impl DndServer {
                         NetEvent::Connected(_, _) => unreachable!(),
                         NetEvent::Accepted(_, _) => (),
                         NetEvent::Message(endpoint, input_data) => {
-                            let message: DndMessage = bincode::deserialize(input_data).unwrap();
-                            server.process_task(endpoint, message);
+                            match bincode::deserialize::<DndMessage>(input_data) {
+                                Ok(message) => server.process_task(endpoint, message),
+                                Err(e) => error!("Failed to deserialize client message: {e}"),
+                            }
                         }
                         NetEvent::Disconnected(endpoint) => {
                             let user = server.users.find_name_for_endpoint(endpoint);
