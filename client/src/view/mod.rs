@@ -73,11 +73,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
             self.added_nodes
                 .push(DndTab::from_tab(Chat::default(), surface, node))
         }
-        if ui.button("Game Board").clicked() {
-            self.added_nodes
-                .push(DndTab::from_tab(Board::default(), surface, node))
-        }
-        if ui.button("Game Board New").clicked() {
+        if ui.button("Board").clicked() {
             self.added_nodes
                 .push(DndTab::from_tab(UiBoardState::default(), surface, node))
         }

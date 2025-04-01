@@ -16,18 +16,15 @@ use message_io::{
 };
 
 use common::{
-    message::{BoardMessage, DndMessage, Log, LogMessage, SaveBoard, UnRegisterUser},
-    Ability, Character, DndPlayerPiece, Item, User,
+    message::{DndMessage, UnRegisterUser},
+    User,
 };
 use postgrest::Postgrest;
 
 mod db_types;
 mod tasks;
 use db_types::*;
-use tasks::{
-    board::{BoardData, ServerBoardData},
-    ServerTask,
-};
+use tasks::{board::ServerBoardData, ServerTask};
 use thiserror::Error;
 
 const AUTOSAVE_TIME_IN_SECS: u64 = 30;
@@ -77,8 +74,6 @@ async fn main() -> io::Result<()> {
 
     Ok(())
 }
-
-type PlayerLookup = HashMap<uuid::Uuid, DndPlayerPiece>;
 
 #[derive(Default, Clone)]
 pub struct UserData {
@@ -267,9 +262,9 @@ async fn autosave_task(server: Arc<DndServer>) {
             interval.tick().await;
 
             info!("Autosaving...");
-            server
-                .process_task_async(server.self_endpoint, SaveBoard { tag: None })
-                .await;
+            //server
+            //    .process_task_async(server.self_endpoint, SaveBoard { tag: None })
+            //    .await;
 
             info!("Autosave complete...");
         }

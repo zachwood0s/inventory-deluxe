@@ -1,7 +1,7 @@
 use core::f32;
 use std::ops::RangeInclusive;
 
-use common::board::{BoardPiece, BoardPieceData, PlayerPieceData};
+use common::board::{BoardPiece, BoardPieceData, CharacterPieceData};
 use egui::{DragValue, Margin, Pos2, Rect, RichText, Style, TextEdit, Ui, WidgetText, Window};
 use log::info;
 
@@ -70,24 +70,26 @@ impl PropertiesDisplay for BoardPiece {
                 );
 
                 match &mut self.data {
-                    BoardPieceData::Player(data) => data.display_props(ui, ctx),
+                    BoardPieceData::Character(data) => {
+                        ui.collapsing(
+                            format!("{} Character", egui_phosphor::regular::PERSON),
+                            |ui| {
+                                egui::Grid::new("general").num_columns(3).show(ui, |ui| {
+                                    LabeledRow("Display Name", &mut self.display_name)
+                                        .display_props(ui, ctx);
+
+                                    LabeledRow(
+                                        "Link Stats",
+                                        &mut PlayerNameSelector(&mut data.link_stats_to),
+                                    )
+                                    .display_props(ui, ctx);
+                                });
+                            },
+                        );
+                    }
                     BoardPieceData::None => {}
                 }
             });
-    }
-}
-
-impl PropertiesDisplay for PlayerPieceData {
-    fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
-        ui.collapsing(format!("{} Player", egui_phosphor::regular::PERSON), |ui| {
-            egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                LabeledRow(
-                    "Link Stats",
-                    &mut PlayerNameSelector(&mut self.link_stats_to),
-                )
-                .display_props(ui, ctx);
-            });
-        });
     }
 }
 
@@ -194,36 +196,41 @@ impl PropertiesDisplay for bool {
 struct PieceSelector<'a>(&'a mut BoardPieceData);
 impl PropertiesDisplay for PieceSelector<'_> {
     fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
-        ctx.changed |= egui::ComboBox::from_id_salt("type_selection")
+        let mut before_value = self.0.clone();
+
+        egui::ComboBox::from_id_salt("type_selection")
             .selected_text(format!("{}", self.0))
             .show_ui(ui, |ui| {
                 ui.selectable_value(self.0, BoardPieceData::None, "None");
                 ui.selectable_value(
                     self.0,
-                    BoardPieceData::Player(PlayerPieceData::default()),
-                    "Player",
+                    BoardPieceData::Character(CharacterPieceData::default()),
+                    "Character",
                 );
-            })
-            .response
-            .changed();
+            });
+
+        ctx.changed |= &mut before_value != self.0;
     }
 }
 
 struct PlayerNameSelector<'a>(&'a mut Option<String>);
 impl PropertiesDisplay for PlayerNameSelector<'_> {
     fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
+        let mut before_value = self.0.clone();
+
         let default = String::from("None");
         let selected_text = self.0.as_ref().unwrap_or(&default);
-        ctx.changed |= egui::ComboBox::from_id_salt("stats_from_selection")
+
+        egui::ComboBox::from_id_salt("stats_from_selection")
             .selected_text(selected_text)
             .show_ui(ui, |ui| {
                 ui.selectable_value(self.0, None, "None");
                 for character in ctx.state.character_list.iter() {
                     ui.selectable_value(self.0, Some(character.clone()), character);
                 }
-            })
-            .response
-            .changed();
+            });
+
+        ctx.changed |= &mut before_value != self.0
     }
 }
 

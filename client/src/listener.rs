@@ -8,6 +8,7 @@ use common::{
     message::{DndMessage, RegisterUser, RetrieveCharacterData},
     User,
 };
+use log::error;
 use message_io::{
     events::EventSender,
     network::{Endpoint, NetEvent, Transport},
@@ -35,7 +36,7 @@ pub struct CommandQueue<'a> {
     pub command_queue: &'a mut Vec<Box<dyn Command>>,
 }
 
-impl<'a> CommandQueue<'a> {
+impl CommandQueue<'_> {
     pub fn add<T: Command + 'static>(&mut self, command: T) {
         self.command_queue.push(Box::new(command));
     }
@@ -99,13 +100,10 @@ impl DndListener {
                 NetEvent::Accepted(_, _) => (),
                 NetEvent::Message(_, input_data) => {
                     let message: DndMessage = bincode::deserialize(input_data).unwrap();
-
-                    println!("Recieved message from server {message:?}");
-
                     self.handler.signals().send(Signal::RecieveMessage(message));
                 }
                 NetEvent::Disconnected(_) => {
-                    println!("Server is disconnected");
+                    error!("Server is disconnected");
                     self.handler.stop();
                 }
             },

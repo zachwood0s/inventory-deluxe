@@ -3,25 +3,13 @@ use std::{
     sync::{atomic::AtomicBool, Arc, RwLock},
 };
 
-use common::{
-    message::{BoardMessage, DndMessage, LoadBoard, Log, LogMessage, SaveBoard},
-    DndPlayerPiece,
-};
+use common::message::{BoardMessage, DndMessage, LoadBoard, Log, LogMessage, SaveBoard};
 use log::info;
 use message_io::network::Endpoint;
 
-use crate::{
-    tasks::log::DirectMessage, DndServer, PlayerLookup, ResponseTextWithError, ServerError, ToError,
-};
+use crate::{tasks::log::DirectMessage, DndServer, ResponseTextWithError, ServerError, ToError};
 
 use super::{Broadcast, Response, ServerTask};
-
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
-pub struct BoardData {
-    #[serde(skip)]
-    dirty: Arc<AtomicBool>,
-    players: Arc<RwLock<PlayerLookup>>,
-}
 
 #[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct ServerBoardData {
@@ -34,16 +22,7 @@ impl ServerBoardData {
     fn process_message(&self, board_message: BoardMessage) -> Result<(), ServerError> {
         self.mark_dirty();
         let mut board = self.board.write().unwrap();
-
-        match board_message {
-            BoardMessage::AddPiece(piece) => {
-                board.piece_set.add_or_update_piece(piece);
-            }
-            BoardMessage::UpdatePiece(piece) => {
-                board.piece_set.add_or_update_piece(piece);
-            }
-            _ => {}
-        }
+        board.handle_message(board_message);
 
         Ok(())
     }
@@ -63,62 +42,6 @@ impl ServerBoardData {
     pub fn overwrite_board_data(&self, new_data: common::board::BoardData) {
         let mut players = self.board.write().unwrap();
         *players = new_data;
-    }
-}
-
-impl BoardData {
-    fn process_message(&self, board_message: BoardMessage) -> Result<(), ServerError> {
-        self.mark_dirty();
-        let mut players = self.players.write().unwrap();
-
-        match board_message {
-            BoardMessage::AddPlayerPiece(uuid, player) => {
-                players.insert(uuid, player);
-            }
-            BoardMessage::UpdatePlayerPiece(uuid, new_player) => {
-                let player = players
-                    .get_mut(&uuid)
-                    .ok_or(ServerError::PlayerNotFound(uuid))?;
-
-                *player = new_player;
-            }
-            BoardMessage::UpdatePlayerLocation(uuid, new_location) => {
-                let player = players
-                    .get_mut(&uuid)
-                    .ok_or(ServerError::PlayerNotFound(uuid))?;
-
-                player.position = new_location;
-            }
-            BoardMessage::DeletePlayerPiece(uuid) => {
-                players.remove(&uuid);
-            }
-            BoardMessage::ClearBoard => {
-                unreachable!("Server should not be instructed to clear board")
-            }
-            _ => {}
-        }
-
-        Ok(())
-    }
-    fn mark_dirty(&self) {
-        self.dirty.store(true, std::sync::atomic::Ordering::SeqCst);
-    }
-
-    pub fn mark_clean(&self) {
-        self.dirty.store(false, std::sync::atomic::Ordering::SeqCst);
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        self.dirty.load(std::sync::atomic::Ordering::SeqCst)
-    }
-
-    pub fn get_players_owned(&self) -> HashMap<uuid::Uuid, DndPlayerPiece> {
-        self.players.read().unwrap().clone()
-    }
-
-    pub fn overwrite_board_data(&self, new_data: BoardData) {
-        let mut players = self.players.write().unwrap();
-        *players = new_data.players.read().unwrap().clone();
     }
 }
 
@@ -218,9 +141,9 @@ impl ServerTask for LoadBoard {
 
                 // TODO: It would be better if the client and server had same representation of board so
                 // that I could send the full state and not individual commands for each piece
-                BroadcastBoardMessage(BoardMessage::ClearBoard)
-                    .process(server.self_endpoint, server)
-                    .await?;
+                //BroadcastBoardMessage(BoardMessage::ClearBoard)
+                //    .process(server.self_endpoint, server)
+                //    .await?;
 
                 BroadcastAllBoardData.process(endpoint, server).await?;
             }

@@ -1,7 +1,9 @@
-use common::board::{BoardPiece, BoardPieceData, BoardPieceSet, PlayerPieceData};
+use core::f32;
+
+use common::board::{BoardPiece, BoardPieceData, BoardPieceSet, CharacterPieceData};
 use egui::{
     epaint::PathStroke, Color32, Image, Painter, Pos2, Rect, Rgba, Rounding, Shape, Stroke,
-    TextureOptions, Ui, Vec2,
+    TextStyle, TextureOptions, Ui, Vec2,
 };
 use emath::RectTransform;
 use log::info;
@@ -62,8 +64,28 @@ impl BoardRender for BoardPiece {
             );
         }
 
+        if self.display_name {
+            let font = TextStyle::Body.resolve(ctx.ui.style());
+
+            let galley = ctx
+                .painter
+                .layout(self.name.clone(), font, Color32::WHITE, f32::INFINITY);
+            let anchor = egui::Align2::CENTER_CENTER;
+            let text_rect = anchor.anchor_size(transformed.center_bottom(), galley.size());
+            let box_rect = text_rect.expand(2.0);
+
+            // Faint black box behind the text
+            ctx.painter.rect_filled(
+                box_rect,
+                Rounding::same(2.0),
+                Rgba::from_rgba_unmultiplied(0.0, 0.0, 0.0, 0.7),
+            );
+
+            ctx.painter.galley(text_rect.min, galley, Color32::WHITE);
+        }
+
         match &self.data {
-            BoardPieceData::Player(data) => data.render(ctx, self),
+            BoardPieceData::Character(data) => data.render(ctx, self),
             BoardPieceData::None => {}
         }
     }
@@ -74,7 +96,7 @@ pub trait ChildRender {
     fn render(&self, render_context: &RenderContext, parent: &BoardPiece) {}
 }
 
-impl ChildRender for PlayerPieceData {
+impl ChildRender for CharacterPieceData {
     fn render(&self, render_context: &RenderContext, parent: &BoardPiece) {}
 }
 

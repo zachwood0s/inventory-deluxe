@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use emath::{Pos2, Rect};
 use itertools::Itertools;
 
+use crate::message::BoardMessage;
+
 // Common:
 // - Position
 // - Size
@@ -98,19 +100,34 @@ pub struct BoardPiece {
     pub sorting_layer: SortingLayer,
     pub snap_to_grid: GridSnap,
     pub locked: bool,
+    pub display_name: bool,
     pub data: BoardPieceData,
 }
 
 #[derive(Clone, Debug, derive_more::Display, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum BoardPieceData {
-    #[display("Player")]
-    Player(PlayerPieceData),
+    #[display("Character")]
+    Character(CharacterPieceData),
     None,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
-pub struct PlayerPieceData {
+pub struct CharacterPieceData {
     pub link_stats_to: Option<String>,
+}
+
+impl BoardData {
+    pub fn handle_message(&mut self, msg: BoardMessage) {
+        match msg {
+            BoardMessage::AddOrUpdatePiece(piece) => {
+                self.piece_set.add_or_update(piece);
+            }
+            BoardMessage::DeletePiece(piece) => {
+                self.piece_set.remove(&piece);
+            }
+            _ => {}
+        }
+    }
 }
 
 impl BoardPieceSet {
@@ -152,8 +169,12 @@ impl BoardPieceSet {
         self.pieces.get_mut(id)
     }
 
-    pub fn add_or_update_piece(&mut self, piece: BoardPiece) {
+    pub fn add_or_update(&mut self, piece: BoardPiece) {
         self.pieces.insert(piece.id, piece);
+    }
+
+    pub fn remove(&mut self, piece_id: &PieceId) {
+        self.pieces.remove(piece_id);
     }
 }
 
@@ -168,6 +189,7 @@ impl BoardPiece {
             sorting_layer: SortingLayer::default(),
             snap_to_grid: GridSnap::MajorSpacing(1.0),
             locked: false,
+            display_name: false,
             data: BoardPieceData::None,
         }
     }
