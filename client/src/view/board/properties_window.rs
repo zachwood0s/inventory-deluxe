@@ -6,44 +6,15 @@ use egui::{
     Align, Button, CentralPanel, DragValue, Label, Margin, Pos2, Rect, RichText, Rounding, Style,
     TextEdit, Ui, Widget, WidgetText, Window,
 };
+use egui_extras::{Size, Strip, StripBuilder};
 
 use crate::state::DndState;
 
 pub struct PropertiesCtx<'a> {
     pub state: &'a DndState,
+    pub open: &'a mut bool,
     pub changed: bool,
 }
-
-//fn properties_window(ctx: &egui::Context, add_contents: impl FnOnce(&mut egui::Ui)) {
-//    let panel_frame = egui::Frame::none()
-//        .fill(ctx.style().visuals.window_fill())
-//        .rounding(Rounding::same(10.0))
-//        .stroke(ctx.style().visuals.widgets.noninteractive.fg_stroke)
-//        .outer_margin(1.0);
-//
-//    CentralPanel::default()
-//        .frame(panel_frame)
-//        .show(ctx, |ui| {
-//            let app_rect = ui.max_rect();
-//
-//            let title_bar_height = 32.0;
-//            let title_bar_rect = {
-//                let mut rect = app_rect;
-//                rect.max.y = rect.min.y + title_bar_height;
-//                rect
-//            };
-//
-//            let content_rect = {
-//                let mut rect = app_rect;
-//                rect.min.y = title_bar_rect.max.y;
-//                rect
-//            }
-//            .shrink(4.0);
-//
-//            let mut content_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
-//            add_contents(&mut content_ui);
-//        });
-//}
 
 pub trait PropertiesDisplay {
     fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx);
@@ -58,42 +29,57 @@ where
     }
 }
 
-impl PropertiesDisplay for BoardPiece {
+impl PropertiesDisplay for Option<&mut BoardPiece> {
     fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let title = RichText::new("Properties").text_style(egui::TextStyle::Body);
         let frame =
             egui::Frame::window(&Style::default()).inner_margin(Margin::symmetric(6.0, 4.0));
 
-        let mut stupid = true;
+        let mut open = *ctx.open;
         Window::new(title)
-            .open(&mut stupid)
+            .open(&mut open)
             .title_bar(false)
             .resizable(false)
             .collapsible(false)
             .frame(frame)
             .show(ui.ctx(), |ui| {
-                ui.set_width(200.0);
+                ui.set_width(230.0);
 
                 ui.horizontal(|ui| {
-                    Label::new("Properties").extend().halign(Align::Min);
-
-                    if Button::new(egui_phosphor::regular::X)
-                        .frame(false)
-                        .ui(ui)
-                        .clicked()
-                    {}
+                    StripBuilder::new(ui)
+                        .size(Size::remainder())
+                        .size(Size::exact(20.0))
+                        .horizontal(|mut strip| {
+                            strip.cell(|ui| {
+                                ui.label("Properties");
+                            });
+                            strip.cell(|ui| {
+                                if Button::new(egui_phosphor::regular::X)
+                                    .frame(false)
+                                    .ui(ui)
+                                    .clicked()
+                                {
+                                    *ctx.open = false;
+                                }
+                            })
+                        });
                 });
                 ui.separator();
+
+                let Some(piece) = self else {
+                    ui.label("Try adding a piece !whydontya!");
+                    return;
+                };
 
                 ui.collapsing(
                     format!("{} General", egui_phosphor::regular::SLIDERS),
                     |ui| {
                         egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                            LabeledRow("Name", &mut self.name).display_props(ui, ctx);
-                            self.rect.display_props(ui, ctx);
-                            LabeledRow("Sorting Layer", &mut self.sorting_layer)
+                            LabeledRow("Name", &mut piece.name).display_props(ui, ctx);
+                            piece.rect.display_props(ui, ctx);
+                            LabeledRow("Sorting Layer", &mut piece.sorting_layer)
                                 .display_props(ui, ctx);
-                            LabeledRow("Piece Type", &mut PieceSelector(&mut self.data))
+                            LabeledRow("Piece Type", &mut PieceSelector(&mut piece.data))
                                 .display_props(ui, ctx);
                         });
                     },
@@ -101,8 +87,8 @@ impl PropertiesDisplay for BoardPiece {
 
                 ui.collapsing(format!("{} Display", egui_phosphor::regular::IMAGE), |ui| {
                     egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                        LabeledRow("Image", &mut self.image_url).display_props(ui, ctx);
-                        LabeledRow("Color", &mut self.color).display_props(ui, ctx);
+                        LabeledRow("Image", &mut piece.image_url).display_props(ui, ctx);
+                        LabeledRow("Color", &mut piece.color).display_props(ui, ctx);
                     });
                 });
 
@@ -110,19 +96,19 @@ impl PropertiesDisplay for BoardPiece {
                     format!("{} Grid", egui_phosphor::regular::DOTS_NINE),
                     |ui| {
                         egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                            self.snap_to_grid.display_props(ui, ctx);
-                            LabeledRow("Locked", &mut self.locked).display_props(ui, ctx);
+                            piece.snap_to_grid.display_props(ui, ctx);
+                            LabeledRow("Locked", &mut piece.locked).display_props(ui, ctx);
                         });
                     },
                 );
 
-                match &mut self.data {
+                match &mut piece.data {
                     BoardPieceData::Character(data) => {
                         ui.collapsing(
                             format!("{} Character", egui_phosphor::regular::PERSON),
                             |ui| {
                                 egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                                    LabeledRow("Display Name", &mut self.display_name)
+                                    LabeledRow("Display Name", &mut piece.display_name)
                                         .display_props(ui, ctx);
 
                                     LabeledRow(

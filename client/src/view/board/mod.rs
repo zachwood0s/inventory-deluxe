@@ -49,6 +49,7 @@ impl SnapToGrid for Vec2 {
 #[derive(Default, Clone, Copy)]
 pub struct SelectionState {
     view_properties: bool,
+    view_prop_piece: Option<PieceId>,
     selected: Option<PieceId>,
     dragged: Option<PieceId>,
 }
@@ -94,11 +95,15 @@ impl Default for UiBoardState {
 impl UiBoardState {
     fn clear_selected(&mut self) {
         self.selection.selected = None;
-        self.selection.view_properties = false;
     }
 
     fn clear_dragging(&mut self) {
         self.drag_state = None;
+    }
+
+    fn view_properties(&mut self, piece_id: Option<PieceId>) {
+        self.selection.view_properties = true;
+        self.selection.view_prop_piece = piece_id;
     }
 
     fn get_selected_piece<'a>(&self, piece_set: &'a BoardPieceSet) -> Option<&'a BoardPiece> {
@@ -109,7 +114,7 @@ impl UiBoardState {
     fn handle_view_props(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &mut PropertiesCtx,
+        state: &DndState,
         piece_set: &mut BoardPieceSet,
         changed_set: &mut Vec<PieceId>,
     ) {
@@ -117,16 +122,23 @@ impl UiBoardState {
             return;
         }
 
-        let Some(piece_id) = self.selection.selected else {
-            return;
+        let mut piece = self
+            .selection
+            .view_prop_piece
+            .as_ref()
+            .and_then(|id| piece_set.get_piece_mut(id));
+
+        let mut ctx = PropertiesCtx {
+            state,
+            changed: false,
+            open: &mut self.selection.view_properties,
         };
 
-        if let Some(piece) = piece_set.get_piece_mut(&piece_id) {
-            piece.display_props(ui, ctx);
+        piece.display_props(ui, &mut ctx);
 
-            if ctx.changed {
-                changed_set.push(piece.id);
-            }
+        if ctx.changed {
+            // SAFE: Can only be marked as changed if we actually had a selected piece
+            changed_set.push(piece.unwrap().id);
         }
     }
 
@@ -233,11 +245,11 @@ impl UiBoardState {
 
             if self.selection.selected.is_some() {
                 if ui.button("View Properties").clicked() {
-                    self.selection.view_properties = true;
+                    self.view_properties(self.selection.selected);
                 }
             } else if ui.button("Add Piece").clicked() {
                 let new_id = PieceId::default();
-                self.selection.view_properties = true;
+                self.view_properties(Some(new_id));
                 self.selection.selected = Some(new_id);
 
                 let new_rect = self.grid.unit_rect(self.input.board_mouse_pos);
@@ -295,12 +307,7 @@ impl UiBoardState {
         self.grid.render(&ctx);
         board.piece_set.render(&ctx);
 
-        let mut ctx = PropertiesCtx {
-            state,
-            changed: false,
-        };
-
-        self.handle_view_props(ui, &mut ctx, &mut board.piece_set, &mut changed_set);
+        self.handle_view_props(ui, state, &mut board.piece_set, &mut changed_set);
 
         // Send out all the updates for the pieces that were modified
         for piece_id in changed_set {
