@@ -2,7 +2,10 @@ use core::f32;
 use std::ops::RangeInclusive;
 
 use common::board::{BoardPiece, BoardPieceData, CharacterPieceData};
-use egui::{DragValue, Margin, Pos2, Rect, RichText, Style, TextEdit, Ui, WidgetText, Window};
+use egui::{
+    Align, Button, CentralPanel, DragValue, Label, Margin, Pos2, Rect, RichText, Rounding, Style,
+    TextEdit, Ui, Widget, WidgetText, Window,
+};
 
 use crate::state::DndState;
 
@@ -10,6 +13,37 @@ pub struct PropertiesCtx<'a> {
     pub state: &'a DndState,
     pub changed: bool,
 }
+
+//fn properties_window(ctx: &egui::Context, add_contents: impl FnOnce(&mut egui::Ui)) {
+//    let panel_frame = egui::Frame::none()
+//        .fill(ctx.style().visuals.window_fill())
+//        .rounding(Rounding::same(10.0))
+//        .stroke(ctx.style().visuals.widgets.noninteractive.fg_stroke)
+//        .outer_margin(1.0);
+//
+//    CentralPanel::default()
+//        .frame(panel_frame)
+//        .show(ctx, |ui| {
+//            let app_rect = ui.max_rect();
+//
+//            let title_bar_height = 32.0;
+//            let title_bar_rect = {
+//                let mut rect = app_rect;
+//                rect.max.y = rect.min.y + title_bar_height;
+//                rect
+//            };
+//
+//            let content_rect = {
+//                let mut rect = app_rect;
+//                rect.min.y = title_bar_rect.max.y;
+//                rect
+//            }
+//            .shrink(4.0);
+//
+//            let mut content_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
+//            add_contents(&mut content_ui);
+//        });
+//}
 
 pub trait PropertiesDisplay {
     fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx);
@@ -30,12 +64,26 @@ impl PropertiesDisplay for BoardPiece {
         let frame =
             egui::Frame::window(&Style::default()).inner_margin(Margin::symmetric(6.0, 4.0));
 
+        let mut stupid = true;
         Window::new(title)
+            .open(&mut stupid)
+            .title_bar(false)
             .resizable(false)
             .collapsible(false)
             .frame(frame)
             .show(ui.ctx(), |ui| {
                 ui.set_width(200.0);
+
+                ui.horizontal(|ui| {
+                    Label::new("Properties").extend().halign(Align::Min);
+
+                    if Button::new(egui_phosphor::regular::X)
+                        .frame(false)
+                        .ui(ui)
+                        .clicked()
+                    {}
+                });
+                ui.separator();
 
                 ui.collapsing(
                     format!("{} General", egui_phosphor::regular::SLIDERS),

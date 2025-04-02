@@ -73,7 +73,7 @@ pub struct BoardPieceSet {
     pieces: HashMap<PieceId, BoardPiece>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum GridSnap {
     MajorSpacing(f32),
     None,

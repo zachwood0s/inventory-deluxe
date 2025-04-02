@@ -16,6 +16,36 @@ use super::DndTabImpl;
 pub mod board_render;
 pub mod properties_window;
 
+pub trait SnapToGrid: Sized {
+    fn snap_to_grid(self, grid_snap: GridSnap) -> Self;
+    fn snap_to_grid_up(self, grid_snap: GridSnap) -> Self;
+}
+
+impl SnapToGrid for Pos2 {
+    fn snap_to_grid(self, grid_snap: GridSnap) -> Self {
+        match grid_snap {
+            GridSnap::MajorSpacing(spacing) => (self / spacing).floor() * spacing,
+            GridSnap::None => self,
+        }
+    }
+
+    fn snap_to_grid_up(self, grid_snap: GridSnap) -> Self {
+        match grid_snap {
+            GridSnap::MajorSpacing(spacing) => (self / spacing).ceil() * spacing,
+            GridSnap::None => self,
+        }
+    }
+}
+
+impl SnapToGrid for Vec2 {
+    fn snap_to_grid(self, grid_snap: GridSnap) -> Self {
+        self.to_pos2().snap_to_grid(grid_snap).to_vec2()
+    }
+    fn snap_to_grid_up(self, grid_snap: GridSnap) -> Self {
+        self.to_pos2().snap_to_grid_up(grid_snap).to_vec2()
+    }
+}
+
 #[derive(Default, Clone, Copy)]
 pub struct SelectionState {
     view_properties: bool,
@@ -116,7 +146,9 @@ impl UiBoardState {
             return;
         }
 
-        let new_pos = self.input.board_mouse_pos + dragged.object_offset;
+        let new_pos = self.input.board_mouse_pos.snap_to_grid(piece.snap_to_grid)
+            + dragged.object_offset.snap_to_grid_up(piece.snap_to_grid);
+
         piece.rect = Rect::from_min_size(new_pos, piece.rect.size());
 
         changed_set.push(piece.id);
@@ -161,7 +193,8 @@ impl UiBoardState {
 
             if selected_idx.is_some() {
                 self.selection.selected = selected_idx.copied();
-            } else {
+            } else if self.drag_state.is_none() {
+                // Only clear the selected if we're not dragging
                 self.clear_selected();
             }
         }
@@ -217,13 +250,8 @@ impl UiBoardState {
 
     fn snap_to_grid(&mut self, piece_set: &mut BoardPieceSet) {
         for piece in piece_set.iter_mut() {
-            if let GridSnap::MajorSpacing(spacing) = piece.snap_to_grid {
-                let current_pos = piece.rect.min;
-
-                let new_pos = (current_pos / spacing).round() * spacing;
-
-                piece.rect = piece.rect.translate(new_pos - current_pos);
-            }
+            let new_pos = piece.rect.min.snap_to_grid(piece.snap_to_grid);
+            piece.rect = Rect::from_min_size(new_pos, piece.rect.size());
         }
     }
 
@@ -258,9 +286,12 @@ impl UiBoardState {
         };
 
         let mut board = state.client_board.lock().unwrap();
+        let mut changed_set = Vec::new();
+
+        self.handle_dragging(&mut board.piece_set, &mut changed_set);
+        self.snap_to_grid(&mut board.piece_set);
 
         self.handle_board_input(&mut ctx, &response, &board.piece_set, commands);
-        self.snap_to_grid(&mut board.piece_set);
         self.grid.render(&ctx);
         board.piece_set.render(&ctx);
 
@@ -269,10 +300,7 @@ impl UiBoardState {
             changed: false,
         };
 
-        let mut changed_set = Vec::new();
-
         self.handle_view_props(ui, &mut ctx, &mut board.piece_set, &mut changed_set);
-        self.handle_dragging(&mut board.piece_set, &mut changed_set);
 
         // Send out all the updates for the pieces that were modified
         for piece_id in changed_set {
