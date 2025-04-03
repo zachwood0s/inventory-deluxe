@@ -148,6 +148,8 @@ impl eframe::App for MyApp {
                     .style(egui_dock::Style::from_egui(ctx.style().as_ref()))
                     .show_add_buttons(true)
                     .show_add_popup(true)
+                    .show_leaf_close_all_buttons(false)
+                    .show_leaf_collapse_buttons(false)
                     .show(ctx, &mut tab_viewer);
             }
 

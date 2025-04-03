@@ -1,6 +1,7 @@
 use board_render::{BoardRender, Grid, RenderContext};
 use common::board::{BoardPiece, BoardPieceSet, GridSnap, PieceId};
 use egui::{Frame, Pos2, Rect, Response, Vec2};
+use log::info;
 use properties_window::{PropertiesCtx, PropertiesDisplay};
 
 use crate::{
@@ -109,6 +110,16 @@ impl UiBoardState {
     fn get_selected_piece<'a>(&self, piece_set: &'a BoardPieceSet) -> Option<&'a BoardPiece> {
         let selected = self.selection.selected?;
         piece_set.get_piece(&selected)
+    }
+
+    fn piece_ui_opacity(&self) -> f32 {
+        const THRESHOLD: f32 = 1.6;
+        const FADE_SPEED: f32 = 1.4;
+        if self.zoom >= THRESHOLD {
+            (1.0 - (self.zoom - THRESHOLD) * FADE_SPEED).max(0.0)
+        } else {
+            1.0
+        }
     }
 
     fn handle_view_props(
@@ -295,6 +306,7 @@ impl UiBoardState {
             to_screen,
             from_screen: to_screen.inverse(),
             render_dimensions,
+            ui_opacity: self.piece_ui_opacity(),
         };
 
         let mut board = state.client_board.lock().unwrap();
@@ -303,10 +315,10 @@ impl UiBoardState {
         self.handle_dragging(&mut board.piece_set, &mut changed_set);
         self.snap_to_grid(&mut board.piece_set);
 
-        self.handle_board_input(&mut ctx, &response, &board.piece_set, commands);
-        self.grid.render(&ctx);
-        board.piece_set.render(&ctx);
+        self.grid.render(&mut ctx);
+        board.piece_set.render(&mut ctx);
 
+        self.handle_board_input(&mut ctx, &response, &board.piece_set, commands);
         self.handle_view_props(ui, state, &mut board.piece_set, &mut changed_set);
 
         // Send out all the updates for the pieces that were modified

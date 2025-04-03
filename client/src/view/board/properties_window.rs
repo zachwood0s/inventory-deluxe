@@ -41,6 +41,7 @@ impl PropertiesDisplay for Option<&mut BoardPiece> {
             .title_bar(false)
             .resizable(false)
             .collapsible(false)
+            .order(egui::Order::Foreground)
             .frame(frame)
             .show(ui.ctx(), |ui| {
                 ui.set_width(230.0);

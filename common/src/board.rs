@@ -133,7 +133,7 @@ impl BoardPieceSet {
     /// Retrieves the ID of the topmost (by `sorting_layer`) piece on the board in the
     /// specified location. Returns None if no piece is in that location
     pub fn get_topmost_piece_at_position(&self, position: Pos2) -> Option<&PieceId> {
-        for (id, piece) in self.sorted_iter_items() {
+        for (id, piece) in self.sorted_iter_items_reversed() {
             if piece.rect.contains(position) {
                 return Some(id);
             }
@@ -142,10 +142,16 @@ impl BoardPieceSet {
         None
     }
 
-    pub fn sorted_iter_items(&self) -> impl Iterator<Item = (&PieceId, &BoardPiece)> {
+    pub fn sorted_iter_items_reversed(&self) -> impl Iterator<Item = (&PieceId, &BoardPiece)> {
         self.pieces
             .iter()
             .sorted_by_key(|(_, piece)| std::cmp::Reverse(piece.sorting_layer))
+    }
+
+    pub fn sorted_iter_items(&self) -> impl Iterator<Item = (&PieceId, &BoardPiece)> {
+        self.pieces
+            .iter()
+            .sorted_by_key(|(_, piece)| piece.sorting_layer)
     }
 
     pub fn sorted_iter(&self) -> impl Iterator<Item = &BoardPiece> {
