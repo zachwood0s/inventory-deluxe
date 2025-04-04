@@ -1,15 +1,11 @@
 use core::f32;
-use std::sync::Arc;
 
 use common::board::{BoardPiece, BoardPieceData, BoardPieceSet, CharacterPieceData};
 use egui::{
-    epaint::PathStroke, Button, Color32, FontId, Galley, Id, Image, Painter, Pos2, Rect, Response,
-    Rgba, RichText, Rounding, Shape, Stroke, TextStyle, TextureOptions, Vec2, Widget, Window,
+    epaint::PathStroke, Color32, Image, Painter, Pos2, Rect, Rgba, Rounding, Shape, Stroke,
+    TextStyle, TextureOptions, Vec2,
 };
 use emath::RectTransform;
-use log::info;
-
-use crate::widgets::group::Group;
 
 use super::SelectionState;
 
@@ -23,6 +19,7 @@ pub struct RenderContext<'r> {
     pub from_screen: RectTransform,
     pub render_dimensions: Vec2,
     pub ui_opacity: f32,
+    pub changed: bool,
 }
 
 pub trait BoardRender {
@@ -66,44 +63,6 @@ impl BoardRender for BoardPiece {
                 Rounding::ZERO,
                 Stroke::new(3.0, Color32::LIGHT_RED),
             );
-
-            // Move to front/back selection icons
-            const SIDE_WIDTH: f32 = 25.0;
-
-            // Expand vertically to account for when the piece is small
-            let mut side_rect = transformed
-                .translate(Vec2::new(-SIDE_WIDTH, 0.0))
-                .expand2(Vec2::new(0.0, 20.0));
-            side_rect.set_width(SIDE_WIDTH);
-
-            let new_ui = egui::UiBuilder::new()
-                .layer_id(egui::LayerId::new(
-                    egui::Order::Middle,
-                    Id::new("render_button"),
-                ))
-                .max_rect(side_rect);
-
-            ctx.ui.scope_builder(new_ui, |ui| {
-                ui.set_opacity(ctx.ui_opacity);
-                ui.horizontal_centered(|ui| {
-                    Group::new("inner_group").show(ui, |ui| {
-                        ui.vertical_centered(|ui| {
-                            if Button::new(egui_phosphor::regular::ARROW_LINE_UP)
-                                .ui(ui)
-                                .clicked()
-                            {
-                                info!("Clicked2");
-                            }
-                            if Button::new(egui_phosphor::regular::ARROW_LINE_DOWN)
-                                .ui(ui)
-                                .clicked()
-                            {
-                                info!("Clicked1");
-                            }
-                        })
-                    })
-                })
-            });
         }
 
         if self.display_name {

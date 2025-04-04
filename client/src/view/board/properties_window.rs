@@ -182,7 +182,7 @@ impl PropertiesDisplay for Pos2 {
 
 impl PropertiesDisplay for common::board::SortingLayer {
     fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
-        RangedNum(&mut self.0, 0..=10).display_props(ui, ctx);
+        RangedNum(&mut self.0, -1_000..=1_000).display_props(ui, ctx);
     }
 }
 

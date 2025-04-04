@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, i32};
 
 use emath::{Pos2, Rect};
-use itertools::Itertools;
+use itertools::{Itertools, MinMaxResult};
 
 use crate::message::BoardMessage;
 
@@ -41,12 +41,23 @@ use crate::message::BoardMessage;
     Eq,
     Ord,
 )]
-pub struct SortingLayer(pub u32);
+pub struct SortingLayer(pub i32);
+
+impl SortingLayer {
+    pub fn one_lower(self) -> Self {
+        SortingLayer(self.0.saturating_sub(1))
+    }
+    pub fn one_higher(self) -> Self {
+        SortingLayer(self.0.saturating_add(1))
+    }
+}
 
 #[derive(
     Clone,
     Copy,
     Debug,
+    PartialOrd,
+    Ord,
     derive_more::Deref,
     derive_more::DerefMut,
     Eq,
@@ -71,6 +82,12 @@ pub struct BoardData {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct BoardPieceSet {
     pieces: HashMap<PieceId, BoardPiece>,
+}
+
+#[derive(Debug, Copy, Clone, Default)]
+pub struct LayerInfo {
+    pub next_highest_layer: SortingLayer,
+    pub next_lowest_layer: SortingLayer,
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
@@ -145,13 +162,13 @@ impl BoardPieceSet {
     pub fn sorted_iter_items_reversed(&self) -> impl Iterator<Item = (&PieceId, &BoardPiece)> {
         self.pieces
             .iter()
-            .sorted_by_key(|(_, piece)| std::cmp::Reverse(piece.sorting_layer))
+            .sorted_by_key(|(_, piece)| std::cmp::Reverse(piece.sort_key()))
     }
 
     pub fn sorted_iter_items(&self) -> impl Iterator<Item = (&PieceId, &BoardPiece)> {
         self.pieces
             .iter()
-            .sorted_by_key(|(_, piece)| piece.sorting_layer)
+            .sorted_by_key(|(_, piece)| piece.sort_key())
     }
 
     pub fn sorted_iter(&self) -> impl Iterator<Item = &BoardPiece> {
@@ -181,6 +198,20 @@ impl BoardPieceSet {
     pub fn remove(&mut self, piece_id: &PieceId) {
         self.pieces.remove(piece_id);
     }
+
+    pub fn layer_info(&self) -> LayerInfo {
+        let (next_lowest_layer, next_highest_layer) =
+            match self.pieces.values().map(|x| x.sorting_layer).minmax() {
+                MinMaxResult::NoElements => (SortingLayer::default(), SortingLayer::default()),
+                MinMaxResult::OneElement(x) => (x.one_lower(), x.one_higher()),
+                MinMaxResult::MinMax(min, max) => (min.one_lower(), max.one_higher()),
+            };
+
+        LayerInfo {
+            next_highest_layer,
+            next_lowest_layer,
+        }
+    }
 }
 
 impl BoardPiece {
@@ -197,6 +228,10 @@ impl BoardPiece {
             display_name: false,
             data: BoardPieceData::None,
         }
+    }
+
+    pub fn sort_key(&self) -> impl Ord {
+        (self.sorting_layer, self.id)
     }
 }
 

@@ -1,8 +1,8 @@
 use board_render::{BoardRender, Grid, RenderContext};
 use common::board::{BoardPiece, BoardPieceSet, GridSnap, PieceId};
 use egui::{Frame, Pos2, Rect, Response, Vec2};
-use log::info;
 use properties_window::{PropertiesCtx, PropertiesDisplay};
+use selected_ui::SelectedUi;
 
 use crate::{
     listener::CommandQueue,
@@ -16,6 +16,7 @@ use super::DndTabImpl;
 
 pub mod board_render;
 pub mod properties_window;
+pub mod selected_ui;
 
 pub trait SnapToGrid: Sized {
     fn snap_to_grid(self, grid_snap: GridSnap) -> Self;
@@ -153,6 +154,33 @@ impl UiBoardState {
         }
     }
 
+    fn handle_selected_ui(
+        &mut self,
+        ctx: &mut RenderContext,
+        state: &DndState,
+        piece_set: &mut BoardPieceSet,
+        changed_set: &mut Vec<PieceId>,
+    ) {
+        // Start with change = false, just in case anyone before us also marked changed
+        ctx.changed = false;
+
+        let Some(selected_id) = self.selection.selected else {
+            return;
+        };
+
+        let layer_info = piece_set.layer_info();
+
+        let Some(piece) = piece_set.get_piece_mut(&selected_id) else {
+            return;
+        };
+
+        piece.ui(ctx, state, &layer_info);
+
+        if ctx.changed {
+            changed_set.push(selected_id);
+        }
+    }
+
     fn handle_dragging(&mut self, piece_set: &mut BoardPieceSet, changed_set: &mut Vec<PieceId>) {
         let Some(dragged) = &self.drag_state else {
             return;
@@ -211,12 +239,15 @@ impl UiBoardState {
         let primary_down = ctx.ui.input(|input| input.pointer.primary_down());
         let secondary_down = ctx.ui.input(|input| input.pointer.secondary_down());
 
-        if response.contains_pointer() && (primary_down || secondary_down) {
+        if response.contains_pointer()
+            && self.drag_state.is_none()
+            && (primary_down || secondary_down)
+        {
             let selected_idx = piece_set.get_topmost_piece_at_position(self.input.board_mouse_pos);
 
             if selected_idx.is_some() {
                 self.selection.selected = selected_idx.copied();
-            } else if self.drag_state.is_none() {
+            } else {
                 // Only clear the selected if we're not dragging
                 self.clear_selected();
             }
@@ -307,18 +338,20 @@ impl UiBoardState {
             from_screen: to_screen.inverse(),
             render_dimensions,
             ui_opacity: self.piece_ui_opacity(),
+            changed: false,
         };
 
         let mut board = state.client_board.lock().unwrap();
         let mut changed_set = Vec::new();
 
         self.handle_dragging(&mut board.piece_set, &mut changed_set);
+        self.handle_board_input(&mut ctx, &response, &board.piece_set, commands);
         self.snap_to_grid(&mut board.piece_set);
 
         self.grid.render(&mut ctx);
         board.piece_set.render(&mut ctx);
+        self.handle_selected_ui(&mut ctx, state, &mut board.piece_set, &mut changed_set);
 
-        self.handle_board_input(&mut ctx, &response, &board.piece_set, commands);
         self.handle_view_props(ui, state, &mut board.piece_set, &mut changed_set);
 
         // Send out all the updates for the pieces that were modified
