@@ -2,16 +2,20 @@ use core::f32;
 
 use common::board::{BoardPiece, BoardPieceData, BoardPieceSet, CharacterPieceData};
 use egui::{
-    epaint::PathStroke, Color32, Image, Painter, Pos2, Rect, Rgba, Rounding, Shape, Stroke,
+    epaint::PathStroke, vec2, Color32, Image, Painter, Pos2, Rect, Rgba, Rounding, Shape, Stroke,
     TextStyle, TextureOptions, Vec2,
 };
 use emath::RectTransform;
+use log::info;
+
+use crate::{state::DndState, widgets::WithAlpha};
 
 use super::SelectionState;
 
 pub struct RenderContext<'r> {
     pub ui: &'r mut egui::Ui,
     pub painter: Painter,
+    pub state: &'r DndState,
     pub selection_state: SelectionState,
     pub from_grid: RectTransform,
     pub to_grid: RectTransform,
@@ -22,14 +26,20 @@ pub struct RenderContext<'r> {
     pub changed: bool,
 }
 
+impl RenderContext<'_> {
+    pub fn to_screen(&self, rect: Rect) -> Rect {
+        let new_rect = self.from_grid.transform_rect(rect);
+        self.to_screen.transform_rect(new_rect)
+    }
+}
+
 pub trait BoardRender {
     fn render(&self, render_context: &mut RenderContext);
 }
 
 impl BoardRender for BoardPiece {
     fn render(&self, ctx: &mut RenderContext) {
-        let transformed = ctx.from_grid.transform_rect(self.rect);
-        let transformed = ctx.to_screen.transform_rect(transformed);
+        let transformed = ctx.to_screen(self.rect);
 
         let mut alpha = 1.0;
         if Some(self.id) == ctx.selection_state.dragged {
@@ -101,7 +111,49 @@ pub trait ChildRender {
 }
 
 impl ChildRender for CharacterPieceData {
-    fn render(&self, _: &RenderContext, _: &BoardPiece) {}
+    fn render(&self, ctx: &RenderContext, piece: &BoardPiece) {
+        //if let Some(linked_stats) = &self.link_stats_to {
+        // TODO: Make all character stats synced so we don't have this
+        // For now, you can only link your own stats
+        //if linked_stats == &ctx.state.character.stats.name {
+        let stats = &ctx.state.character.stats;
+
+        let filled_hp_perc = stats.curr_hp as f32 / stats.max_hp as f32;
+
+        // Render healthbar
+        let transformed = ctx.to_screen(piece.rect);
+        let health_pos = transformed.center_bottom() + vec2(0.0, 15.0);
+        let health_bar_rect = Rect::from_center_size(health_pos, vec2(100.0, 8.0));
+        let filled_rect = Rect::from_min_size(
+            health_bar_rect.min,
+            health_bar_rect.size() * vec2(filled_hp_perc, 1.0),
+        );
+
+        let stroke_color = Rgba::from_black_alpha(ctx.ui_opacity);
+        let background_color = Rgba::from_black_alpha(0.7 * ctx.ui_opacity);
+        let fill_color = if filled_hp_perc >= 0.5 {
+            Color32::GREEN
+        } else if filled_hp_perc >= 0.1 {
+            Color32::YELLOW
+        } else {
+            Color32::RED
+        }
+        .gamma_multiply(ctx.ui_opacity);
+
+        let rounding = Rounding::ZERO;
+
+        ctx.painter.rect(
+            health_bar_rect,
+            rounding,
+            background_color,
+            Stroke::new(2.0, stroke_color),
+        );
+
+        ctx.painter.rect_filled(filled_rect, rounding, fill_color);
+
+        //}
+        //}
+    }
 }
 
 pub struct Grid {

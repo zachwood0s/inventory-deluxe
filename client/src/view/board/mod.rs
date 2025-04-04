@@ -114,7 +114,7 @@ impl UiBoardState {
     }
 
     fn piece_ui_opacity(&self) -> f32 {
-        const THRESHOLD: f32 = 1.6;
+        const THRESHOLD: f32 = 2.0;
         const FADE_SPEED: f32 = 1.4;
         if self.zoom >= THRESHOLD {
             (1.0 - (self.zoom - THRESHOLD) * FADE_SPEED).max(0.0)
@@ -157,7 +157,6 @@ impl UiBoardState {
     fn handle_selected_ui(
         &mut self,
         ctx: &mut RenderContext,
-        state: &DndState,
         piece_set: &mut BoardPieceSet,
         changed_set: &mut Vec<PieceId>,
     ) {
@@ -174,7 +173,7 @@ impl UiBoardState {
             return;
         };
 
-        piece.ui(ctx, state, &layer_info);
+        piece.ui(ctx, &layer_info);
 
         if ctx.changed {
             changed_set.push(selected_id);
@@ -331,6 +330,7 @@ impl UiBoardState {
         let mut ctx = RenderContext {
             ui,
             painter,
+            state,
             selection_state: self.selection,
             from_grid,
             to_grid: from_grid.inverse(),
@@ -350,7 +350,7 @@ impl UiBoardState {
 
         self.grid.render(&mut ctx);
         board.piece_set.render(&mut ctx);
-        self.handle_selected_ui(&mut ctx, state, &mut board.piece_set, &mut changed_set);
+        self.handle_selected_ui(&mut ctx, &mut board.piece_set, &mut changed_set);
 
         self.handle_view_props(ui, state, &mut board.piece_set, &mut changed_set);
 

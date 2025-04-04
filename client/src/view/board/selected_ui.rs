@@ -7,11 +7,11 @@ use crate::{state::DndState, widgets::group::Group};
 use super::board_render::RenderContext;
 
 pub trait SelectedUi {
-    fn ui(&mut self, ctx: &mut RenderContext, state: &DndState, layer_info: &LayerInfo);
+    fn ui(&mut self, ctx: &mut RenderContext, layer_info: &LayerInfo);
 }
 
 impl SelectedUi for BoardPiece {
-    fn ui(&mut self, ctx: &mut RenderContext, state: &DndState, layer_info: &LayerInfo) {
+    fn ui(&mut self, ctx: &mut RenderContext, layer_info: &LayerInfo) {
         let transformed = ctx.from_grid.transform_rect(self.rect);
         let transformed = ctx.to_screen.transform_rect(transformed);
 
