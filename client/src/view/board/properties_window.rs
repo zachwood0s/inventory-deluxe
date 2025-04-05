@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 use common::board::{BoardPiece, BoardPieceData, CharacterPieceData};
 use egui::{
     Align, Button, CentralPanel, DragValue, Label, Margin, Pos2, Rect, RichText, Rounding, Style,
-    TextEdit, Ui, Widget, WidgetText, Window,
+    TextEdit, Ui, UiBuilder, Widget, WidgetText, Window,
 };
 use egui_extras::{Size, Strip, StripBuilder};
 
@@ -32,20 +32,16 @@ where
 impl PropertiesDisplay for Option<&mut BoardPiece> {
     fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let title = RichText::new("Properties").text_style(egui::TextStyle::Body);
-        let frame =
-            egui::Frame::window(&Style::default()).inner_margin(Margin::symmetric(6.0, 4.0));
 
         let mut open = *ctx.open;
         Window::new(title)
             .open(&mut open)
             .title_bar(false)
-            .resizable(false)
+            .resizable([true, false])
             .collapsible(false)
             .order(egui::Order::Foreground)
-            .frame(frame)
+            .default_width(230.0)
             .show(ui.ctx(), |ui| {
-                ui.set_width(230.0);
-
                 ui.horizontal(|ui| {
                     StripBuilder::new(ui)
                         .size(Size::remainder())
@@ -72,57 +68,59 @@ impl PropertiesDisplay for Option<&mut BoardPiece> {
                     return;
                 };
 
-                ui.collapsing(
-                    format!("{} General", egui_phosphor::regular::SLIDERS),
-                    |ui| {
-                        egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                            LabeledRow("Name", &mut piece.name).display_props(ui, ctx);
-                            piece.rect.display_props(ui, ctx);
-                            LabeledRow("Sorting Layer", &mut piece.sorting_layer)
-                                .display_props(ui, ctx);
-                            LabeledRow("Piece Type", &mut PieceSelector(&mut piece.data))
-                                .display_props(ui, ctx);
-                        });
-                    },
-                );
-
-                ui.collapsing(format!("{} Display", egui_phosphor::regular::IMAGE), |ui| {
-                    egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                        LabeledRow("Image", &mut piece.image_url).display_props(ui, ctx);
-                        LabeledRow("Color", &mut piece.color).display_props(ui, ctx);
-                    });
-                });
-
-                ui.collapsing(
-                    format!("{} Grid", egui_phosphor::regular::DOTS_NINE),
-                    |ui| {
-                        egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                            piece.snap_to_grid.display_props(ui, ctx);
-                            LabeledRow("Locked", &mut piece.locked).display_props(ui, ctx);
-                        });
-                    },
-                );
-
-                match &mut piece.data {
-                    BoardPieceData::Character(data) => {
-                        ui.collapsing(
-                            format!("{} Character", egui_phosphor::regular::PERSON),
-                            |ui| {
-                                egui::Grid::new("general").num_columns(3).show(ui, |ui| {
-                                    LabeledRow("Display Name", &mut piece.display_name)
-                                        .display_props(ui, ctx);
-
-                                    LabeledRow(
-                                        "Link Stats",
-                                        &mut PlayerNameSelector(&mut data.link_stats_to),
-                                    )
+                ui.scope_builder(UiBuilder::new(), |ui| {
+                    ui.collapsing(
+                        format!("{} General", egui_phosphor::regular::SLIDERS),
+                        |ui| {
+                            egui::Grid::new("general").num_columns(3).show(ui, |ui| {
+                                LabeledRow("Name", &mut piece.name).display_props(ui, ctx);
+                                piece.rect.display_props(ui, ctx);
+                                LabeledRow("Sorting Layer", &mut piece.sorting_layer)
                                     .display_props(ui, ctx);
-                                });
-                            },
-                        );
+                                LabeledRow("Piece Type", &mut PieceSelector(&mut piece.data))
+                                    .display_props(ui, ctx);
+                            });
+                        },
+                    );
+
+                    ui.collapsing(format!("{} Display", egui_phosphor::regular::IMAGE), |ui| {
+                        egui::Grid::new("general").num_columns(3).show(ui, |ui| {
+                            LabeledRow("Image", &mut piece.image_url).display_props(ui, ctx);
+                            LabeledRow("Color", &mut piece.color).display_props(ui, ctx);
+                        });
+                    });
+
+                    ui.collapsing(
+                        format!("{} Grid", egui_phosphor::regular::DOTS_NINE),
+                        |ui| {
+                            egui::Grid::new("general").num_columns(3).show(ui, |ui| {
+                                piece.snap_to_grid.display_props(ui, ctx);
+                                LabeledRow("Locked", &mut piece.locked).display_props(ui, ctx);
+                            });
+                        },
+                    );
+
+                    match &mut piece.data {
+                        BoardPieceData::Character(data) => {
+                            ui.collapsing(
+                                format!("{} Character", egui_phosphor::regular::PERSON),
+                                |ui| {
+                                    egui::Grid::new("general").num_columns(3).show(ui, |ui| {
+                                        LabeledRow("Display Name", &mut piece.display_name)
+                                            .display_props(ui, ctx);
+
+                                        LabeledRow(
+                                            "Link Stats",
+                                            &mut PlayerNameSelector(&mut data.link_stats_to),
+                                        )
+                                        .display_props(ui, ctx);
+                                    });
+                                },
+                            );
+                        }
+                        BoardPieceData::None => {}
                     }
-                    BoardPieceData::None => {}
-                }
+                });
             });
     }
 }

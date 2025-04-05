@@ -74,17 +74,19 @@ impl Widget for Indicator {
                 IndicatorShape::Square => {
                     ui.painter().add(epaint::RectShape::new(
                         big_icon_rect.expand(visuals.expansion),
-                        visuals.rounding,
+                        visuals.corner_radius,
                         visuals.bg_fill,
                         visuals.bg_stroke,
+                        egui::StrokeKind::Outside,
                     ));
 
                     if self.filled {
                         ui.painter().add(epaint::RectShape::new(
                             small_icon_rect.expand(visuals.expansion),
-                            visuals.rounding,
+                            visuals.corner_radius,
                             visuals.fg_stroke.color,
                             visuals.fg_stroke,
+                            egui::StrokeKind::Outside,
                         ));
                     }
                 }

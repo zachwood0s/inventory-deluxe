@@ -2,7 +2,8 @@ use core::f32;
 
 use common::board::{BoardPiece, BoardPieceData, BoardPieceSet, CharacterPieceData};
 use egui::{
-    epaint::PathStroke, vec2, Color32, Image, Painter, Pos2, Rect, Rgba, Rounding, Shape, Stroke,
+    epaint::{CornerRadiusF32, PathStroke},
+    vec2, Color32, CornerRadius, Image, Painter, Pos2, Rect, Rgba, Rounding, Shape, Stroke,
     TextStyle, TextureOptions, Vec2,
 };
 use emath::RectTransform;
@@ -64,14 +65,15 @@ impl BoardRender for BoardPiece {
                 .paint_at(ctx.ui, transformed);
         } else {
             ctx.painter
-                .rect_filled(transformed, Rounding::ZERO, Color32::from(color));
+                .rect_filled(transformed, CornerRadius::ZERO, Color32::from(color));
         }
 
         if Some(self.id) == ctx.selection_state.selected {
             ctx.painter.rect_stroke(
                 transformed,
-                Rounding::ZERO,
+                CornerRadius::ZERO,
                 Stroke::new(3.0, Color32::LIGHT_RED),
+                egui::StrokeKind::Outside,
             );
         }
 
@@ -91,7 +93,7 @@ impl BoardRender for BoardPiece {
             // Faint black box behind the text
             ctx.painter.rect_filled(
                 box_rect,
-                Rounding::same(2.0),
+                CornerRadiusF32::same(2.0),
                 Rgba::from_rgba_unmultiplied(0.0, 0.0, 0.0, 0.7 * ctx.ui_opacity),
             );
 
@@ -140,13 +142,14 @@ impl ChildRender for CharacterPieceData {
         }
         .gamma_multiply(ctx.ui_opacity);
 
-        let rounding = Rounding::ZERO;
+        let rounding = CornerRadius::ZERO;
 
         ctx.painter.rect(
             health_bar_rect,
             rounding,
             background_color,
             Stroke::new(2.0, stroke_color),
+            egui::StrokeKind::Outside,
         );
 
         ctx.painter.rect_filled(filled_rect, rounding, fill_color);
@@ -204,7 +207,7 @@ impl BoardRender for Grid {
                     ctx.to_screen * Pos2::new(-dims.x + grid_origin.x, y),
                     ctx.to_screen * Pos2::new(dims.x + grid_origin.x, y),
                 ],
-                PathStroke::new(1.0, Color32::DARK_GRAY),
+                Stroke::new(1.0, Color32::DARK_GRAY),
             ));
         }
 
@@ -216,7 +219,7 @@ impl BoardRender for Grid {
                     ctx.to_screen * Pos2::new(x, -dims.y + grid_origin.y),
                     ctx.to_screen * Pos2::new(x, dims.y + grid_origin.y),
                 ],
-                PathStroke::new(1.0, Color32::DARK_GRAY),
+                Stroke::new(1.0, Color32::DARK_GRAY),
             ));
         }
     }

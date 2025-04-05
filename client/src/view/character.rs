@@ -157,12 +157,12 @@ impl StatWidget {
 
 impl egui::Widget for StatWidget {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        Frame::none()
+        Frame::NONE
             .stroke(egui::Stroke {
                 width: 1.0,
                 color: Color32::LIGHT_GRAY,
             })
-            .inner_margin(Margin::same(5.0))
+            .inner_margin(Margin::same(5))
             .show(ui, |ui| {
                 Resize::default()
                     .resizable(false)
