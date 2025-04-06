@@ -1,9 +1,9 @@
-use std::{collections::HashMap, i32};
+use std::{collections::{HashMap, HashSet}, i32};
 
 use emath::{Pos2, Rect};
 use itertools::{Itertools, MinMaxResult};
 
-use crate::message::BoardMessage;
+use crate::message::{BackpackPiece, BoardMessage};
 
 // Common:
 // - Position
@@ -77,11 +77,17 @@ impl Default for PieceId {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct BoardData {
     pub piece_set: BoardPieceSet,
+    pub backpack_set: BackpackSet,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct BoardPieceSet {
     pieces: HashMap<PieceId, BoardPiece>,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct BackpackSet {
+    pieces: HashMap<String, BackpackPiece>,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -142,7 +148,45 @@ impl BoardData {
             BoardMessage::DeletePiece(piece) => {
                 self.piece_set.remove(&piece);
             }
+            BoardMessage::StoreBackpackPiece(piece) => {
+                self.backpack_set
+                    .pieces
+                    .insert(piece.piece.name.clone(), piece);
+            }
+            BoardMessage::RemoveBackpackPiece(piece) => {
+                self.backpack_set.pieces.remove(&piece);
+            }
         }
+    }
+}
+
+impl BackpackSet {
+    pub fn iter(&self) -> impl Iterator<Item = &BackpackPiece> {
+        self.pieces.values()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut BackpackPiece> {
+        self.pieces.values_mut()
+    }
+
+    pub fn get_piece(&self, id: &String) -> Option<&BackpackPiece> {
+        self.pieces.get(id)
+    }
+
+    pub fn get_piece_mut(&mut self, id: &String) -> Option<&mut BackpackPiece> {
+        self.pieces.get_mut(id)
+    }
+
+    pub fn add_or_update(&mut self, piece: BackpackPiece) {
+        self.pieces.insert(piece.piece.name.clone(), piece);
+    }
+
+    pub fn remove(&mut self, piece_id: &String) {
+        self.pieces.remove(piece_id);
+    }
+
+    pub fn len(&self) -> usize {
+        self.pieces.len()
     }
 }
 

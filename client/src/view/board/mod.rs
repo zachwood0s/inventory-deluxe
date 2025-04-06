@@ -1,5 +1,8 @@
 use board_render::{BoardRender, Grid, RenderContext};
-use common::board::{BoardPiece, BoardPieceSet, GridSnap, PieceId};
+use common::{
+    board::{BoardPiece, BoardPieceSet, GridSnap, PieceId},
+    message::BackpackPiece,
+};
 use egui::{Frame, Pos2, Rect, Response, Vec2};
 use properties_window::{PropertiesCtx, PropertiesDisplay};
 use selected_ui::SelectedUi;
@@ -7,6 +10,7 @@ use selected_ui::SelectedUi;
 use crate::{
     listener::CommandQueue,
     state::{
+        backpack::commands::StorePlayerPiece,
         board::{self, commands::AddOrUpdatePiece},
         DndState,
     },
@@ -284,9 +288,23 @@ impl UiBoardState {
         response.context_menu(|ui| {
             ui.set_width(100.0);
 
-            if self.selection.selected.is_some() {
+            if let Some(selected_id) = self.selection.selected {
                 if ui.button("View Properties").clicked() {
                     self.view_properties(self.selection.selected);
+                }
+
+                if ui.button("Send to Backpack").clicked() {
+                    //Safe cause I said so
+                    let user = ctx.state.user.to_owned().unwrap();
+                    if let Some(piece) = piece_set.get_piece(&selected_id) {
+                        let backpack_piece = BackpackPiece {
+                            user,
+                            category: "Misc".into(),
+                            piece: piece.clone(),
+                        };
+
+                        commands.add(StorePlayerPiece(backpack_piece));
+                    }
                 }
             } else if ui.button("Add Piece").clicked() {
                 let new_id = PieceId::default();

@@ -17,6 +17,8 @@ pub struct ServerBoardData {
 
 impl ServerBoardData {
     fn process_message(&self, board_message: BoardMessage) -> Result<(), ServerError> {
+        //Database stuff (match on board message and do the thing the board message thing)
+        //Whatever i do it with take a REFERENCE to the board message so I don't have to clone it!! - Cale's Idea
         self.mark_dirty();
         let mut board = self.board.write().unwrap();
         board.handle_message(board_message);

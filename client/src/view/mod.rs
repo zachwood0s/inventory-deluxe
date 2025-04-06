@@ -5,8 +5,10 @@ mod chat;
 mod items;
 pub mod multi_select;
 mod settings;
+mod backpack;
 
 pub use abilities::*;
+use backpack::Backpack;
 pub use board::*;
 pub use character::*;
 pub use chat::*;
@@ -89,10 +91,13 @@ impl egui_dock::TabViewer for TabViewer<'_> {
             self.added_nodes
                 .push(DndTab::from_tab(Items::default(), surface, node))
         }
-
         if ui.button("Settings").clicked() {
             self.added_nodes
                 .push(DndTab::from_tab(Settings::default(), surface, node))
+        }
+        if ui.button("Backpack").clicked() {
+            self.added_nodes
+                .push(DndTab::from_tab(Backpack::default(), surface, node))
         }
     }
 }

@@ -37,6 +37,8 @@ pub enum LogMessage {
 pub enum BoardMessage {
     AddOrUpdatePiece(BoardPiece),
     DeletePiece(PieceId),
+    StoreBackpackPiece(BackpackPiece),
+    RemoveBackpackPiece(String),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
@@ -82,6 +84,13 @@ pub struct UpdateItemCount {
 pub struct UpdatePowerSlotCount {
     pub user: User,
     pub new_count: i16,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+pub struct BackpackPiece {
+    pub user: User,
+    pub category: String,
+    pub piece: BoardPiece,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]

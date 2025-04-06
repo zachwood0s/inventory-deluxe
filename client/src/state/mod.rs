@@ -4,6 +4,7 @@ use common::{message::DndMessage, User};
 pub mod abilities;
 pub mod board;
 pub mod character;
+pub mod backpack;
 pub mod chat;
 
 #[derive(Default)]
