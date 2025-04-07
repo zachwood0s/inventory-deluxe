@@ -67,8 +67,11 @@ pub mod commands {
     impl Command for SetPowerSlotCount {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
             let user = state.owned_user();
+            let Some(character) = state.character.characters.get_mut(&user) else {
+                return;
+            };
 
-            let power_slots = &mut state.character.stats.power_slots;
+            let power_slots = &mut character.power_slots;
 
             *power_slots = self.count;
 

@@ -172,7 +172,9 @@ impl Widget for AbilityWidget<'_, '_> {
                                         count: self
                                             .state
                                             .character
-                                            .stats
+                                            .characters
+                                            .get(&self.state.owned_user())
+                                            .unwrap()
                                             .power_slots
                                             .saturating_sub(1),
                                     });
@@ -247,7 +249,13 @@ impl DndTabImpl for Abilities {
                     for ind in 0..3 {
                         Indicator {
                             shape,
-                            filled: ind < state.character.stats.power_slots,
+                            filled: ind
+                                < state
+                                    .character
+                                    .characters
+                                    .get(&state.owned_user())
+                                    .unwrap()
+                                    .power_slots,
                         }
                         .ui(ui);
                     }

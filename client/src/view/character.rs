@@ -1,6 +1,6 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
-use crate::state::character::commands::{CharacterHealth, RefreshCharacter, ToggleSkill};
+use crate::state::character::commands::{RefreshCharacter, ToggleSkill, UpdateCharacterStats};
 use egui::{Align, Color32, Frame, Margin, Resize, RichText, Widget};
 use egui_extras::{Column, TableBuilder};
 
@@ -188,11 +188,13 @@ pub struct Character {
 
 impl DndTabImpl for Character {
     fn ui(&mut self, ui: &mut egui::Ui, state: &DndState, commands: &mut CommandQueue) {
-        let char = &state.character.stats;
+        let Some(char) = &state.character.characters.get(&state.owned_user()) else {
+            return;
+        };
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.heading(&char.name);
+                ui.heading(char.info.name.deref());
                 ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
                     if ui.button("Refresh").clicked() {
                         commands.add(RefreshCharacter);
@@ -202,7 +204,7 @@ impl DndTabImpl for Character {
 
             ui.add_space(4.0);
 
-            ui.label(RichText::new(format!("\"{}\"", char.tagline)).italics());
+            ui.label(RichText::new(format!("\"{}\"", char.info.tagline)).italics());
 
             // health
             ui.horizontal(|ui| {
@@ -214,20 +216,24 @@ impl DndTabImpl for Character {
                 }
                 let max_hp = self.temp_max_hp.as_mut().unwrap();
                 let curr_hp = self.temp_curr_hp.as_mut().unwrap();
+
                 let curr_hp_resp = egui::DragValue::new(curr_hp).range(0..=char.max_hp).ui(ui);
-                ui.label("/");
                 let max_hp_resp = egui::DragValue::new(max_hp).range(0..=u16::MAX).ui(ui);
-                ui.label("hp");
+
                 let curr_focus_lost =
                     curr_hp_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 let max_focus_lost =
                     max_hp_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+
                 if curr_focus_lost
                     || curr_hp_resp.drag_stopped()
                     || max_focus_lost
                     || max_hp_resp.drag_stopped()
                 {
-                    commands.add(CharacterHealth::new(*curr_hp, *max_hp));
+                    commands.add(UpdateCharacterStats::new(
+                        state.owned_user(),
+                        char.with_max_hp(*max_hp).with_curr_hp(*curr_hp),
+                    ))
                 }
             });
 
@@ -266,7 +272,7 @@ impl DndTabImpl for Character {
 
                     let skill = &SKILL_LIST[index];
 
-                    let selected = char.skills.contains(&(skill.name).to_string());
+                    let selected = char.info.skills.contains(&(skill.name).to_string());
 
                     row.col(|ui| {
                         if ui.radio(selected, "").clicked() {

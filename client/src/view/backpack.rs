@@ -29,7 +29,7 @@ impl DndTabImpl for Backpack {
                     .iter()
                     .into_group_map_by(|piece| &piece.category)
                 {
-                    ui.add_sized([ui.available_width(), 20.0], egui);
+                    //ui.add_sized([ui.available_width(), 20.0], egui);
                     ui.label(format!("\t{}", category));
 
                     for piece in pieces {

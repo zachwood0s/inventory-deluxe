@@ -1,7 +1,10 @@
 use core::f32;
-use std::ops::RangeInclusive;
+use std::ops::{Deref, RangeInclusive};
 
-use common::board::{BoardPiece, BoardPieceData, CharacterPieceData};
+use common::{
+    board::{BoardPiece, BoardPieceData, CharacterPieceData},
+    User,
+};
 use egui::{
     Align, Button, CentralPanel, DragValue, Label, Margin, Pos2, Rect, RichText, Rounding, Style,
     TextEdit, Ui, UiBuilder, Widget, WidgetText, Window,
@@ -245,20 +248,20 @@ impl PropertiesDisplay for PieceSelector<'_> {
     }
 }
 
-struct PlayerNameSelector<'a>(&'a mut Option<String>);
+struct PlayerNameSelector<'a>(&'a mut Option<User>);
 impl PropertiesDisplay for PlayerNameSelector<'_> {
     fn display_props(&mut self, ui: &mut Ui, ctx: &mut PropertiesCtx) {
         let mut before_value = self.0.clone();
 
-        let default = String::from("None");
+        let default = String::from("None").into();
         let selected_text = self.0.as_ref().unwrap_or(&default);
 
         egui::ComboBox::from_id_salt("stats_from_selection")
-            .selected_text(selected_text)
+            .selected_text(selected_text.deref())
             .show_ui(ui, |ui| {
                 ui.selectable_value(self.0, None, "None");
                 for character in ctx.state.character_list.iter() {
-                    ui.selectable_value(self.0, Some(character.clone()), character);
+                    ui.selectable_value(self.0, Some(character.clone().into()), character);
                 }
             });
 

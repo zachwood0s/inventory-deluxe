@@ -1,6 +1,6 @@
 use crate::{
     board::{BoardPiece, PieceId},
-    Ability, Character, Item, User,
+    Ability, Character, CharacterSemiStatic, CharacterStats, Item, User,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -100,10 +100,9 @@ pub struct UpdateSkills {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
-pub struct UpdateHealth {
+pub struct UpdateCharacterStats {
     pub user: User,
-    pub cur_health: i16,
-    pub max_health: i16,
+    pub new_stats: CharacterStats,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
@@ -120,8 +119,8 @@ pub enum DndMessage {
     UpdatePowerSlotCount(UpdatePowerSlotCount),
 
     // Character
+    UpdateCharacterStats(UpdateCharacterStats),
     UpdateSkills(UpdateSkills),
-    UpdateHealth(UpdateHealth),
 
     // Board
     BoardMessage(BoardMessage),

@@ -1,9 +1,15 @@
-use std::{collections::{HashMap, HashSet}, i32};
+use std::{
+    collections::{HashMap, HashSet},
+    i32,
+};
 
 use emath::{Pos2, Rect};
 use itertools::{Itertools, MinMaxResult};
 
-use crate::message::{BackpackPiece, BoardMessage};
+use crate::{
+    message::{BackpackPiece, BoardMessage},
+    User,
+};
 
 // Common:
 // - Position
@@ -136,7 +142,7 @@ pub enum BoardPieceData {
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct CharacterPieceData {
-    pub link_stats_to: Option<String>,
+    pub link_stats_to: Option<User>,
 }
 
 impl BoardData {

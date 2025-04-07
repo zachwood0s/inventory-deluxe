@@ -1,10 +1,25 @@
 use std::fmt::{Debug, Display};
 
+use derive_more::{Deref, DerefMut};
 
 pub mod board;
 pub mod message;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    Clone,
+    Default,
+    Deref,
+    DerefMut,
+    derive_more::Into,
+    derive_more::From,
+    Hash,
+    PartialEq,
+    Eq,
+)]
+#[serde(from = "String")]
 pub struct User {
     pub name: String,
 }
@@ -45,19 +60,86 @@ pub struct Ability {
     pub uses: i64,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    Clone,
+    Default,
+    derive_more::Deref,
+    derive_more::DerefMut,
+)]
 pub struct Character {
-    pub name: String,
+    pub info: CharacterSemiStatic,
+    #[deref]
+    #[deref_mut]
+    pub stats: CharacterStats,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, Default)]
+pub struct CharacterStats {
     pub int: i16,
     pub wis: i16,
     pub str: i16,
     pub cha: i16,
     pub dex: i16,
     pub con: i16,
-    pub tagline: String,
-    pub backstory: String,
-    pub skills: Vec<String>,
     pub power_slots: i16,
     pub max_hp: i16,
     pub curr_hp: i16,
+}
+
+impl CharacterStats {
+    pub fn with_int(mut self, int: i16) -> Self {
+        self.int = int;
+        self
+    }
+
+    pub fn with_wis(mut self, wis: i16) -> Self {
+        self.wis = wis;
+        self
+    }
+
+    pub fn with_str(mut self, str: i16) -> Self {
+        self.str = str;
+        self
+    }
+
+    pub fn with_cha(mut self, cha: i16) -> Self {
+        self.cha = cha;
+        self
+    }
+
+    pub fn with_dex(mut self, dex: i16) -> Self {
+        self.dex = dex;
+        self
+    }
+
+    pub fn with_con(mut self, con: i16) -> Self {
+        self.con = con;
+        self
+    }
+
+    pub fn with_powerslots(mut self, power_slots: i16) -> Self {
+        self.power_slots = power_slots;
+        self
+    }
+
+    pub fn with_max_hp(mut self, max_hp: i16) -> Self {
+        self.max_hp = max_hp;
+        self
+    }
+
+    pub fn with_curr_hp(mut self, curr_hp: i16) -> Self {
+        self.curr_hp = curr_hp;
+        self
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
+pub struct CharacterSemiStatic {
+    pub name: User,
+    pub tagline: String,
+    pub backstory: String,
+    pub skills: Vec<String>,
 }

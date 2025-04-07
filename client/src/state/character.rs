@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use common::{message::DndMessage, Ability, Item};
 
 #[derive(Default)]
 pub struct CharacterState {
-    pub stats: common::Character,
+    pub characters: HashMap<common::User, common::Character>,
     pub items: Vec<Item>,
     pub abilities: Vec<Ability>,
 }
@@ -15,10 +17,16 @@ impl CharacterState {
                 self.items = items.clone();
             }
             DndMessage::CharacterData(character) => {
-                self.stats = character.clone();
+                self.characters
+                    .insert(character.info.name.clone(), character.clone());
             }
             DndMessage::AbilityList(abilities) => {
                 self.abilities = abilities.clone();
+            }
+            DndMessage::UpdateCharacterStats(msg) => {
+                if let Some(character) = self.characters.get_mut(&msg.user) {
+                    character.stats = msg.new_stats;
+                }
             }
             _ => {}
         }
@@ -26,6 +34,8 @@ impl CharacterState {
 }
 
 pub mod commands {
+    use common::CharacterStats;
+
     use crate::prelude::*;
 
     pub struct UseItem {
@@ -107,7 +117,11 @@ pub mod commands {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
             let user = state.owned_user();
 
-            let skills = &mut state.character.stats.skills;
+            let Some(character) = state.character.characters.get_mut(&user) else {
+                return;
+            };
+
+            let skills = &mut character.info.skills;
 
             if skills.contains(&self.skill_name) {
                 skills.retain(|x| x != &self.skill_name);
@@ -125,34 +139,28 @@ pub mod commands {
         }
     }
 
-    pub struct CharacterHealth {
-        pub max_hp: i16,
-        pub curr_hp: i16,
+    pub struct UpdateCharacterStats {
+        user: User,
+        new_stats: CharacterStats,
     }
 
-    impl CharacterHealth {
-        pub fn new(curr_hp: i16, max_hp: i16) -> Self {
-            let curr_hp = curr_hp.clamp(0, max_hp);
-            CharacterHealth { curr_hp, max_hp }
+    impl UpdateCharacterStats {
+        pub fn new(user: User, new_stats: CharacterStats) -> Self {
+            Self { user, new_stats }
         }
     }
 
-    impl Command for CharacterHealth {
-        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            let user = state.owned_user();
-            let stats = &mut state.character.stats;
-
-            stats.max_hp = self.max_hp;
-            stats.curr_hp = self.curr_hp;
+    impl Command for UpdateCharacterStats {
+        fn execute(self: Box<Self>, _: &mut DndState, tx: &EventSender<Signal>) {
+            let Self { user, new_stats } = *self;
 
             tx.send(
-                DndMessage::UpdateHealth(UpdateHealth {
+                DndMessage::UpdateCharacterStats(common::message::UpdateCharacterStats {
                     user,
-                    cur_health: stats.curr_hp,
-                    max_health: stats.max_hp,
+                    new_stats,
                 })
                 .into(),
-            );
+            )
         }
     }
 }

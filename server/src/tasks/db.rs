@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{message::*, User};
+use common::{message::*, CharacterSemiStatic, CharacterStats, User};
 use log::{debug, info};
 use message_io::network::Endpoint;
 
@@ -7,7 +7,7 @@ use crate::{
     DBAbilityResponse, DBItemResponse, DndServer, InnerInto, ResponseTextWithError, ToError,
 };
 
-use super::{Response, ReturnToSender, ServerTask};
+use super::{Broadcast, Response, ReturnToSender, ServerTask};
 
 /// Retrieves all of the available characters in the DB
 pub struct GetCharacterList;
@@ -116,9 +116,17 @@ impl Response for GetCharacterStats<'_> {
 
         debug!("{}'s character data {}", user.name, stats);
 
-        let stats = serde_json::from_str(&stats)?;
+        #[derive(serde::Deserialize)]
+        struct DbCharacter {
+            #[serde(flatten)]
+            info: CharacterSemiStatic,
+            #[serde(flatten)]
+            stats: CharacterStats,
+        }
 
-        Ok(DndMessage::CharacterData(stats))
+        let DbCharacter { info, stats } = serde_json::from_str(&stats)?;
+
+        Ok(DndMessage::CharacterData(common::Character { info, stats }))
     }
 }
 
@@ -215,31 +223,40 @@ impl ServerTask for UpdateSkills {
     }
 }
 
-/// Updates a user's hp stats
-impl ServerTask for UpdateHealth {
-    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
-        let Self {
-            user,
-            cur_health,
-            max_health,
-        } = self;
+impl ServerTask for UpdateCharacterStats {
+    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+        let Self { user, new_stats } = &self;
+
+        let update = serde_json::to_string(new_stats)?;
 
         server
             .db
             .from("character")
             .eq("name", &user.name)
-            .update(format!(
-                "{{ \"curr_hp\": {cur_health}, \"max_hp\": {max_health}}}"
-            ))
+            .update(&update)
             .execute()
             .await?
             .to_error()?;
 
-        info!(
-            "{}'s health updated to {cur_health}/{max_health}",
-            &user.name
-        );
+        info!("Updated {}'s character stats: {}", user.name, update);
 
-        Ok(())
+        BroadcastCharacterStatsMessage(self)
+            .process(endpoint, server)
+            .await
+    }
+}
+
+pub struct BroadcastCharacterStatsMessage(UpdateCharacterStats);
+impl Response for BroadcastCharacterStatsMessage {
+    type Action = Broadcast;
+    type ResponseData = DndMessage;
+
+    async fn response(
+        self,
+        _: Endpoint,
+        _: &crate::DndServer,
+    ) -> anyhow::Result<Self::ResponseData> {
+        let Self(msg) = self;
+        Ok(DndMessage::UpdateCharacterStats(msg))
     }
 }

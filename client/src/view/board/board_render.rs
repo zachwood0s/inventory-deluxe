@@ -114,48 +114,46 @@ pub trait ChildRender {
 
 impl ChildRender for CharacterPieceData {
     fn render(&self, ctx: &RenderContext, piece: &BoardPiece) {
-        //if let Some(linked_stats) = &self.link_stats_to {
-        // TODO: Make all character stats synced so we don't have this
-        // For now, you can only link your own stats
-        //if linked_stats == &ctx.state.character.stats.name {
-        let stats = &ctx.state.character.stats;
+        let linked = self
+            .link_stats_to
+            .as_ref()
+            .and_then(|x| ctx.state.character.characters.get(x));
 
-        let filled_hp_perc = stats.curr_hp as f32 / stats.max_hp as f32;
+        if let Some(linked) = linked {
+            let filled_hp_perc = linked.curr_hp as f32 / linked.max_hp as f32;
 
-        // Render healthbar
-        let transformed = ctx.to_screen(piece.rect);
-        let health_pos = transformed.center_bottom() + vec2(0.0, 15.0);
-        let health_bar_rect = Rect::from_center_size(health_pos, vec2(100.0, 8.0));
-        let filled_rect = Rect::from_min_size(
-            health_bar_rect.min,
-            health_bar_rect.size() * vec2(filled_hp_perc, 1.0),
-        );
+            // Render healthbar
+            let transformed = ctx.to_screen(piece.rect);
+            let health_pos = transformed.center_bottom() + vec2(0.0, 15.0);
+            let health_bar_rect = Rect::from_center_size(health_pos, vec2(100.0, 8.0));
+            let filled_rect = Rect::from_min_size(
+                health_bar_rect.min,
+                health_bar_rect.size() * vec2(filled_hp_perc, 1.0),
+            );
 
-        let stroke_color = Rgba::from_black_alpha(ctx.ui_opacity);
-        let background_color = Rgba::from_black_alpha(0.7 * ctx.ui_opacity);
-        let fill_color = if filled_hp_perc >= 0.5 {
-            Color32::GREEN
-        } else if filled_hp_perc >= 0.1 {
-            Color32::YELLOW
-        } else {
-            Color32::RED
+            let stroke_color = Rgba::from_black_alpha(ctx.ui_opacity);
+            let background_color = Rgba::from_black_alpha(0.7 * ctx.ui_opacity);
+            let fill_color = if filled_hp_perc >= 0.5 {
+                Color32::GREEN
+            } else if filled_hp_perc >= 0.1 {
+                Color32::YELLOW
+            } else {
+                Color32::RED
+            }
+            .gamma_multiply(ctx.ui_opacity);
+
+            let rounding = CornerRadius::ZERO;
+
+            ctx.painter.rect(
+                health_bar_rect,
+                rounding,
+                background_color,
+                Stroke::new(2.0, stroke_color),
+                egui::StrokeKind::Outside,
+            );
+
+            ctx.painter.rect_filled(filled_rect, rounding, fill_color);
         }
-        .gamma_multiply(ctx.ui_opacity);
-
-        let rounding = CornerRadius::ZERO;
-
-        ctx.painter.rect(
-            health_bar_rect,
-            rounding,
-            background_color,
-            Stroke::new(2.0, stroke_color),
-            egui::StrokeKind::Outside,
-        );
-
-        ctx.painter.rect_filled(filled_rect, rounding, fill_color);
-
-        //}
-        //}
     }
 }
 
