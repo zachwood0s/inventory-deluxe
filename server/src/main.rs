@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     io,
-    net::ToSocketAddrs,
+    net::{SocketAddr, ToSocketAddrs},
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -58,10 +58,14 @@ impl ResponseTextWithError for reqwest::Response {
     }
 }
 
+pub struct ListenerCtx {
+    handler: NodeHandler<()>,
+}
+
 #[derive(Clone)]
 pub struct ClientInfo {
     user_data: User,
-    endpoint: Endpoint,
+    endpoint: DndEndpoint,
 }
 
 #[tokio::main]
@@ -107,7 +111,7 @@ impl UserData {
         users.remove(name)
     }
 
-    pub fn find_name_for_endpoint(&self, endpoint: Endpoint) -> Option<String> {
+    pub fn find_name_for_endpoint(&self, endpoint: DndEndpoint) -> Option<String> {
         let users = self.user_list.read().unwrap();
         let found = users.iter().find(|(_, info)| info.endpoint == endpoint);
         found.map(|(name, _)| name).cloned()
@@ -119,8 +123,25 @@ impl UserData {
     }
 }
 
-enum Signal {
-    Autosave,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DndEndpoint {
+    Client(Endpoint),
+    Server,
+}
+
+impl From<Endpoint> for DndEndpoint {
+    fn from(endpoint: Endpoint) -> Self {
+        Self::Client(endpoint)
+    }
+}
+
+impl DndEndpoint {
+    pub fn client(&self) -> anyhow::Result<Endpoint> {
+        match self {
+            DndEndpoint::Client(endpoint) => Ok(*endpoint),
+            DndEndpoint::Server => Err(anyhow!("Endpoint is not a client!")),
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -136,20 +157,15 @@ enum ServerError {
 }
 
 pub struct DndServer {
-    handler: NodeHandler<Signal>,
+    addr: SocketAddr,
     board_data: ServerBoardData,
-    self_endpoint: Endpoint,
-    node_listener: Option<NodeListener<Signal>>,
     users: UserData,
     db: Postgrest,
 }
 
 impl DndServer {
     pub fn new(addr: &str, port: u16) -> io::Result<Self> {
-        let (handler, node_listener) = node::split::<Signal>();
         let addr = (addr, port).to_socket_addrs().unwrap().next().unwrap();
-
-        let (_, ws_addr) = handler.network().listen(Transport::Ws, addr)?;
 
         let url = dotenv::var("NEXT_PUBLIC_SUPABASE_URL").unwrap();
         let db = Postgrest::new(url).insert_header(
@@ -159,22 +175,9 @@ impl DndServer {
 
         info!("Connected to DB");
 
-        info!("Server running at {}", addr);
-
-        // Fake endpoint that doesn't really matter
-        // Magic number matches bit 7 & 2 set because we need
-        // non-connection oriented (2) and local (7)
-        let self_endpoint = Endpoint::from_listener(130.into(), ws_addr);
-
-        handler
-            .signals()
-            .send_with_timer(Signal::Autosave, Duration::from_secs(AUTOSAVE_TIME_IN_SECS));
-
         let server = Self {
+            addr,
             db,
-            handler,
-            self_endpoint,
-            node_listener: Some(node_listener),
             users: UserData::default(),
             board_data: ServerBoardData::default(),
         };
@@ -184,44 +187,26 @@ impl DndServer {
         Ok(server)
     }
 
-    pub async fn run(mut self) {
-        let node_listener = self.node_listener.take().unwrap();
+    pub async fn run(self) {
         let server = Arc::new(self);
 
         let autosave = autosave_task(Arc::clone(&server));
-
-        let listener = async {
-            node_listener.for_each(move |event| {
-                if let node::NodeEvent::Network(net_event) = event {
-                    match net_event {
-                        NetEvent::Connected(_, _) => unreachable!(),
-                        NetEvent::Accepted(_, _) => (),
-                        NetEvent::Message(endpoint, input_data) => {
-                            let message: DndMessage = bincode::deserialize(input_data).unwrap();
-                            server.process_task(endpoint, message);
-                        }
-                        NetEvent::Disconnected(endpoint) => {
-                            let user = server.users.find_name_for_endpoint(endpoint);
-
-                            if let Some(name) = user {
-                                let name = name.clone();
-                                server.process_task(endpoint, UnRegisterUser { name });
-                            }
-                        }
-                    }
-                }
-            });
-        };
+        let listener = listener_task(Arc::clone(&server));
 
         tokio::join!(autosave, listener);
     }
 
-    fn process_task<T: tasks::ServerTask>(&self, endpoint: Endpoint, task: T) {
-        futures::executor::block_on(self.process_task_async(endpoint, task));
+    fn process_task<T: tasks::ServerTask>(&self, ctx: &ListenerCtx, endpoint: Endpoint, task: T) {
+        futures::executor::block_on(self.process_task_async(ctx, endpoint, task));
     }
 
-    async fn process_task_async<T: tasks::ServerTask>(&self, endpoint: Endpoint, task: T) {
-        let res = task.process(endpoint, self).await;
+    async fn process_task_async<T: tasks::ServerTask>(
+        &self,
+        ctx: &ListenerCtx,
+        endpoint: Endpoint,
+        task: T,
+    ) {
+        let res = task.process(endpoint.into(), self, ctx).await;
 
         if let Err(e) = res {
             error!("Error handling server task: {e}");
@@ -230,23 +215,67 @@ impl DndServer {
 }
 
 impl ServerTask for DndMessage {
-    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        endpoint: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         match self {
-            DndMessage::RegisterUser(msg) => msg.process(endpoint, server).await,
-            DndMessage::UnregisterUser(msg) => msg.process(endpoint, server).await,
-            DndMessage::UserNotificationRemoved(_) => todo!(),
-            DndMessage::RetrieveCharacterData(msg) => msg.process(endpoint, server).await,
-            DndMessage::UpdateCharacterStats(msg) => msg.process(endpoint, server).await,
-            DndMessage::UpdateItemCount(msg) => msg.process(endpoint, server).await,
-            DndMessage::UpdateAbilityCount(msg) => msg.process(endpoint, server).await,
-            DndMessage::UpdateSkills(msg) => msg.process(endpoint, server).await,
-            DndMessage::UpdatePowerSlotCount(msg) => msg.process(endpoint, server).await,
-            DndMessage::BoardMessage(msg) => msg.process(endpoint, server).await,
-            DndMessage::SaveBoard(msg) => msg.process(endpoint, server).await,
-            DndMessage::LoadBoard(msg) => msg.process(endpoint, server).await,
-            DndMessage::Log(msg) => msg.process(endpoint, server).await,
+            DndMessage::RegisterUser(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::UnregisterUser(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::RetrieveCharacterData(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::UpdateCharacterStats(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::UpdateItemCount(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::UpdateAbilityCount(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::UpdateSkills(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::UpdatePowerSlotCount(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::BoardMessage(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::SaveBoard(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::LoadBoard(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::Log(msg) => msg.process(endpoint, server, ctx).await,
             _ => Err(anyhow!("Unhandled message {self:?}")),
         }
+    }
+}
+
+async fn listener_task(server: Arc<DndServer>) {
+    loop {
+        let server = Arc::clone(&server);
+
+        info!("Listener starting at {}", server.addr);
+
+        let (handler, node_listener) = node::split::<()>();
+
+        handler
+            .network()
+            .listen(Transport::Ws, server.addr)
+            .expect("Failed to open listener");
+
+        let ctx = ListenerCtx { handler };
+
+        node_listener.for_each(move |event| {
+            if let node::NodeEvent::Network(net_event) = event {
+                match net_event {
+                    NetEvent::Connected(_, _) => unreachable!(),
+                    NetEvent::Accepted(_, _) => (),
+                    NetEvent::Message(endpoint, input_data) => {
+                        let message: DndMessage = bincode::deserialize(input_data).unwrap();
+                        server.process_task(&ctx, endpoint, message);
+                    }
+                    NetEvent::Disconnected(endpoint) => {
+                        let user = server.users.find_name_for_endpoint(endpoint.into());
+
+                        if let Some(name) = user {
+                            let name = name.clone();
+                            server.process_task(&ctx, endpoint, UnRegisterUser { name });
+                        }
+                    }
+                }
+            }
+        });
+
+        error!("!! Listener fucking killed itself... Trying to revive !!");
     }
 }
 

@@ -1,10 +1,10 @@
 use anyhow::Context;
 use common::{message::*, CharacterSemiStatic, CharacterStats, User};
 use log::{debug, info};
-use message_io::network::Endpoint;
 
 use crate::{
-    DBAbilityResponse, DBItemResponse, DndServer, InnerInto, ResponseTextWithError, ToError,
+    DBAbilityResponse, DBItemResponse, DndEndpoint, DndServer, InnerInto, ListenerCtx,
+    ResponseTextWithError, ToError,
 };
 
 use super::{Broadcast, Response, ReturnToSender, ServerTask};
@@ -15,7 +15,11 @@ impl Response for GetCharacterList {
     type Action = ReturnToSender;
     type ResponseData = DndMessage;
 
-    async fn response(self, _: Endpoint, server: &DndServer) -> anyhow::Result<Self::ResponseData> {
+    async fn response(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+    ) -> anyhow::Result<Self::ResponseData> {
         info!("Retrieving character list");
         let resp = server.db.from("character").select("name").execute().await?;
         let chr_list = resp.text_with_error().await?;
@@ -39,7 +43,11 @@ impl Response for GetItemList<'_> {
     type Action = ReturnToSender;
     type ResponseData = DndMessage;
 
-    async fn response(self, _: Endpoint, server: &DndServer) -> anyhow::Result<Self::ResponseData> {
+    async fn response(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+    ) -> anyhow::Result<Self::ResponseData> {
         let Self(user) = self;
 
         info!("Retrieving item list for {}", user.name);
@@ -70,7 +78,11 @@ impl Response for GetAbilityList<'_> {
     type Action = ReturnToSender;
     type ResponseData = DndMessage;
 
-    async fn response(self, _: Endpoint, server: &DndServer) -> anyhow::Result<Self::ResponseData> {
+    async fn response(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+    ) -> anyhow::Result<Self::ResponseData> {
         let Self(user) = self;
 
         info!("Retrieving ability list for {}", user.name);
@@ -100,7 +112,11 @@ impl Response for GetCharacterStats<'_> {
     type Action = ReturnToSender;
     type ResponseData = DndMessage;
 
-    async fn response(self, _: Endpoint, server: &DndServer) -> anyhow::Result<Self::ResponseData> {
+    async fn response(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+    ) -> anyhow::Result<Self::ResponseData> {
         let Self(user) = self;
 
         let resp = server
@@ -133,7 +149,12 @@ impl Response for GetCharacterStats<'_> {
 /// Updates the number of items of the specified type the specified user
 /// has in their inventory
 impl ServerTask for UpdateItemCount {
-    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+        _: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let Self {
             user,
             item_id,
@@ -162,7 +183,12 @@ impl ServerTask for UpdateItemCount {
 
 /// Updates the remaining number of usages a user has of the specified ability
 impl ServerTask for UpdateAbilityCount {
-    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+        _: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let Self {
             user,
             ability_name,
@@ -186,7 +212,12 @@ impl ServerTask for UpdateAbilityCount {
 
 /// Updates a user's remaning power slot count
 impl ServerTask for UpdatePowerSlotCount {
-    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+        _: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let Self { user, new_count } = self;
 
         server
@@ -204,7 +235,12 @@ impl ServerTask for UpdatePowerSlotCount {
 
 /// Updates a user's skills
 impl ServerTask for UpdateSkills {
-    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+        _: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let Self { user, skills } = self;
         let skill_vec = serde_json::to_string(&skills)?;
 
@@ -224,7 +260,12 @@ impl ServerTask for UpdateSkills {
 }
 
 impl ServerTask for UpdateCharacterStats {
-    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        endpoint: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let Self { user, new_stats } = &self;
 
         let update = serde_json::to_string(new_stats)?;
@@ -241,7 +282,7 @@ impl ServerTask for UpdateCharacterStats {
         info!("Updated {}'s character stats: {}", user.name, update);
 
         BroadcastCharacterStatsMessage(self)
-            .process(endpoint, server)
+            .process(endpoint, server, ctx)
             .await
     }
 }
@@ -253,7 +294,7 @@ impl Response for BroadcastCharacterStatsMessage {
 
     async fn response(
         self,
-        _: Endpoint,
+        _: DndEndpoint,
         _: &crate::DndServer,
     ) -> anyhow::Result<Self::ResponseData> {
         let Self(msg) = self;

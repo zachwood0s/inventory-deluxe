@@ -2,9 +2,11 @@ use std::sync::{atomic::AtomicBool, Arc, RwLock};
 
 use common::message::{BoardMessage, DndMessage, LoadBoard, Log, LogMessage, SaveBoard};
 use log::info;
-use message_io::network::Endpoint;
 
-use crate::{tasks::log::DirectMessage, DndServer, ResponseTextWithError, ServerError, ToError};
+use crate::{
+    tasks::log::DirectMessage, DndEndpoint, DndServer, ListenerCtx, ResponseTextWithError,
+    ServerError, ToError,
+};
 
 use super::{Broadcast, Response, ServerTask};
 
@@ -51,7 +53,7 @@ impl Response for BroadcastBoardMessage {
 
     async fn response(
         self,
-        _: Endpoint,
+        _: DndEndpoint,
         _: &crate::DndServer,
     ) -> anyhow::Result<Self::ResponseData> {
         let Self(msg) = self;
@@ -60,15 +62,25 @@ impl Response for BroadcastBoardMessage {
 }
 
 impl ServerTask for BoardMessage {
-    async fn process(self, from: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        from: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         server.board_data.process_message(self.clone())?;
 
-        BroadcastBoardMessage(self).process(from, server).await
+        BroadcastBoardMessage(self).process(from, server, ctx).await
     }
 }
 
 impl ServerTask for SaveBoard {
-    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         // Skip autosave if no tag is provided and no board modifications have happened
         if !server.board_data.is_dirty() && self.tag.is_none() {
             info!("Skipping autosave, no board modifications to save");
@@ -96,7 +108,7 @@ impl ServerTask for SaveBoard {
             user: common::User::server(),
             payload: LogMessage::Server(format!("Board saved with tag: {tag}")),
         }
-        .process(server.self_endpoint, server)
+        .process(DndEndpoint::Server, server, ctx)
         .await?;
 
         info!("sent log message");
@@ -106,7 +118,12 @@ impl ServerTask for SaveBoard {
 }
 
 impl ServerTask for LoadBoard {
-    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        endpoint: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let resp = server
             .db
             .from("board_data")
@@ -135,7 +152,7 @@ impl ServerTask for LoadBoard {
                     user: common::User::server(),
                     payload: LogMessage::Server(format!("Loaded board: {}", self.tag)),
                 }
-                .process(server.self_endpoint, server)
+                .process(DndEndpoint::Server, server, ctx)
                 .await?;
 
                 // TODO: It would be better if the client and server had same representation of board so
@@ -144,7 +161,7 @@ impl ServerTask for LoadBoard {
                 //    .process(server.self_endpoint, server)
                 //    .await?;
 
-                BroadcastAllBoardData.process(endpoint, server).await?;
+                BroadcastAllBoardData.process(endpoint, server, ctx).await?;
             }
             None => {
                 DirectMessage(Log {
@@ -154,7 +171,7 @@ impl ServerTask for LoadBoard {
                         self.tag
                     )),
                 })
-                .process(endpoint, server)
+                .process(endpoint, server, ctx)
                 .await?;
             }
         }
@@ -165,7 +182,12 @@ impl ServerTask for LoadBoard {
 
 pub struct BroadcastAllBoardData;
 impl ServerTask for BroadcastAllBoardData {
-    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         // TODO: It would be better if the client and server had same representation of board so
         // that I could send the full state and not individual commands for each piece
         //for (uuid, player) in server.board_data.get_players_owned().into_iter() {
@@ -188,7 +210,12 @@ impl ServerTask for BroadcastAllBoardData {
 
 pub struct SendInitialBoardData;
 impl ServerTask for SendInitialBoardData {
-    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        endpoint: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         //for (uuid, player) in server.board_data.get_players_owned().into_iter() {
         //    let message = DndMessage::BoardMessage(BoardMessage::AddPlayerPiece(uuid, player));
 
@@ -207,7 +234,12 @@ impl ServerTask for SendInitialBoardData {
 
 pub struct GetLatestBoardData;
 impl ServerTask for GetLatestBoardData {
-    async fn process(self, _: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn process(
+        self,
+        _: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let resp = server
             .db
             .from("board_data")

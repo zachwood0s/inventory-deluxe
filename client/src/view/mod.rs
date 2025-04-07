@@ -1,16 +1,18 @@
 mod abilities;
+mod backpack;
 pub mod board;
 mod character;
+pub mod character_sheet;
 mod chat;
 mod items;
 pub mod multi_select;
 mod settings;
-mod backpack;
 
 pub use abilities::*;
 use backpack::Backpack;
 pub use board::*;
 pub use character::*;
+use character_sheet::{CharacterSheet, CharacterSheetWindow};
 pub use chat::*;
 use egui::Color32;
 use egui_dock::{NodeIndex, SurfaceIndex};
@@ -65,6 +67,18 @@ impl egui_dock::TabViewer for TabViewer<'_> {
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         ui.visuals_mut().code_bg_color = Color32::TRANSPARENT;
         tab.kind.ui(ui, self.state, &mut self.network);
+
+        if let Some(char) = self
+            .state
+            .character
+            .characters
+            .get(&self.state.owned_user())
+        {
+            CharacterSheetWindow {
+                sheet: CharacterSheet::new(char),
+            }
+            .ui(ui);
+        }
     }
 
     fn add_popup(&mut self, ui: &mut egui::Ui, surface: SurfaceIndex, node: NodeIndex) {

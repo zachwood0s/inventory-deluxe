@@ -1,6 +1,4 @@
-use message_io::network::Endpoint;
-
-use crate::{DndServer, ToError};
+use crate::{DndEndpoint, DndServer, ListenerCtx, ToError};
 
 pub mod board;
 pub mod db;
@@ -10,8 +8,9 @@ pub mod server;
 pub trait ServerTask {
     fn process(
         self,
-        endpoint: Endpoint,
+        endpoint: DndEndpoint,
         server: &DndServer,
+        ctx: &ListenerCtx,
     ) -> impl futures::Future<Output = anyhow::Result<()>> + Send;
 }
 
@@ -24,7 +23,7 @@ pub trait Response: Send + Sync {
     type ResponseData: serde::Serialize;
     fn response(
         self,
-        endpoint: Endpoint,
+        endpoint: DndEndpoint,
         server: &DndServer,
     ) -> impl futures::Future<Output = anyhow::Result<Self::ResponseData>> + Send;
 }
@@ -32,8 +31,9 @@ pub trait Response: Send + Sync {
 pub trait ResponseAction<T: Response> {
     fn do_action(
         t: T,
-        endpoint: Endpoint,
+        endpoint: DndEndpoint,
         server: &DndServer,
+        ctx: &ListenerCtx,
     ) -> impl futures::Future<Output = anyhow::Result<()>> + Send;
 }
 
@@ -42,8 +42,13 @@ where
     T: Response,
     <T as Response>::Action: ResponseAction<T>,
 {
-    async fn process(self, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
-        T::Action::do_action(self, endpoint, server).await
+    async fn process(
+        self,
+        endpoint: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
+        T::Action::do_action(self, endpoint, server, ctx).await
     }
 }
 
@@ -51,14 +56,19 @@ impl<T> ResponseAction<T> for ReturnToSender
 where
     T: Response,
 {
-    async fn do_action(t: T, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn do_action(
+        t: T,
+        endpoint: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let resp_msg = t.response(endpoint, server).await?;
         let encoded = bincode::serialize(&resp_msg)?;
-        server
-            .handler
-            .network()
-            .send(endpoint, &encoded)
-            .to_error()?;
+
+        // Only support sending responses to clients
+        let endpoint = endpoint.client()?;
+
+        ctx.handler.network().send(endpoint, &encoded).to_error()?;
 
         Ok(())
     }
@@ -68,16 +78,22 @@ impl<T> ResponseAction<T> for Broadcast
 where
     T: Response,
 {
-    async fn do_action(t: T, endpoint: Endpoint, server: &DndServer) -> anyhow::Result<()> {
+    async fn do_action(
+        t: T,
+        endpoint: DndEndpoint,
+        server: &DndServer,
+        ctx: &ListenerCtx,
+    ) -> anyhow::Result<()> {
         let resp_msg = t.response(endpoint, server).await?;
         let encoded = bincode::serialize(&resp_msg)?;
 
         server.users.foreach(|(_name, user)| {
             if user.endpoint != endpoint {
-                server
-                    .handler
+                // All users should be client endpoints
+                let user_endpoint = user.endpoint.client()?;
+                ctx.handler
                     .network()
-                    .send(user.endpoint, &encoded)
+                    .send(user_endpoint, &encoded)
                     .to_error()?;
             }
 
@@ -85,3 +101,24 @@ where
         })
     }
 }
+
+pub trait DbTask {
+    fn builder(
+        self,
+        db: &postgrest::Postgrest,
+    ) -> impl futures::Future<Output = anyhow::Result<postgrest::Builder>> + Send;
+}
+
+//impl<T> ServerTask for T
+//where
+//    T: DbTask,
+//{
+//    async fn process(
+//        self,
+//        endpoint: DndEndpoint,
+//        server: &DndServer,
+//        ctx: &ListenerCtx,
+//    ) -> anyhow::Result<()> {
+//        todo!()
+//    }
+//}
