@@ -101,24 +101,3 @@ where
         })
     }
 }
-
-pub trait DbTask {
-    fn builder(
-        self,
-        db: &postgrest::Postgrest,
-    ) -> impl futures::Future<Output = anyhow::Result<postgrest::Builder>> + Send;
-}
-
-//impl<T> ServerTask for T
-//where
-//    T: DbTask,
-//{
-//    async fn process(
-//        self,
-//        endpoint: DndEndpoint,
-//        server: &DndServer,
-//        ctx: &ListenerCtx,
-//    ) -> anyhow::Result<()> {
-//        todo!()
-//    }
-//}

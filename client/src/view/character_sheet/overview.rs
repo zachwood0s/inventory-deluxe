@@ -1,6 +1,10 @@
 use common::Character;
-use egui::{CentralPanel, Image, TopBottomPanel, Widget, Window};
+use egui::{CentralPanel, Frame, Image, RichText, TopBottomPanel, Widget, Window};
 use egui_extras::{Size, Strip, StripBuilder};
+
+use crate::widgets::group::Group;
+
+use super::StatTile;
 
 pub struct CharacterSheetWindow<'a> {
     pub sheet: CharacterSheet<'a>,
@@ -27,27 +31,85 @@ impl<'a> CharacterSheet<'a> {
     }
 
     pub fn ui(self, ui: &mut egui::Ui) {
-        TopBottomPanel::top("top_bar").min_height(50.0).resizable(false).show_inside(ui, |ui| {
-            StripBuilder::new(ui).size(Size::exact(50.0)).size(Size::remainder()).horizontal(|mut strip| {
+        let top_bar_height = 100.0;
+        StripBuilder::new(ui)
+            .size(Size::exact(top_bar_height))
+            .size(Size::remainder())
+            .vertical(|mut strip| {
+                strip.strip(|builder| TopBar::new(self.character, 100.0).show_in_strip(builder));
                 strip.cell(|ui| {
-                    Image::new("https://cdn.discordapp.com/attachments/1295543267231928321/1295557362551230514/th.png?ex=67f52311&is=67f3d191&hm=663ceb5f04136e4456ee988b8c97879afa1d40c98b85b7bb2d5075b418ec9420&").ui(ui);
+                    ui.separator();
                 });
-                strip.cell(|ui| {
-                    ui.label("Remainder");
-                });
-
-            })
-        });
-
-        TopBottomPanel::bottom("bottom_bar")
-            .min_height(10.0)
-            .resizable(false)
-            .show_inside(ui, |ui| {
-                ui.label("bottom");
             });
+    }
+}
 
-        CentralPanel::default().show_inside(ui, |ui| {
-            ui.label("Remainder");
-        });
+struct TopBar<'a> {
+    character: &'a Character,
+    height: f32,
+    hp_width: f32,
+    min_name_width: f32,
+}
+
+impl<'a> TopBar<'a> {
+    pub fn new(character: &'a Character, height: f32) -> Self {
+        Self {
+            character,
+            height,
+            hp_width: 250.0,
+            min_name_width: 400.0,
+        }
+    }
+
+    pub fn ui(self, ui: &mut egui::Ui) {
+        self.show_in_strip(StripBuilder::new(ui))
+    }
+
+    pub fn show_in_strip(self, builder: egui_extras::StripBuilder) {
+        builder
+            .size(Size::exact(self.height))
+            .size(Size::remainder().at_least(self.min_name_width))
+            .size(Size::exact(self.height))
+            .size(Size::exact(self.hp_width))
+            .horizontal(|mut strip| {
+                strip.cell(|ui| {
+                    ProfilePic::new("https://cdn.discordapp.com/attachments/1295543267231928321/1295557362551230514/th.png?ex=67f52311&is=67f3d191&hm=663ceb5f04136e4456ee988b8c97879afa1d40c98b85b7bb2d5075b418ec9420&").ui(ui);
+                });
+                strip.cell(|ui| {
+                    ui.horizontal_centered(|ui| {
+                        Group::new("character_info").show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.label(RichText::new(self.character.info.name.clone()).font(egui::FontId::proportional(30.0)));
+                                ui.label(&self.character.info.tagline);
+                            });
+                        });
+                    });
+                });
+                strip.cell(|ui| {
+                    let mut ac = self.character.str;
+                    ui.add(StatTile::new("ARMOR", "CLASS", &mut ac));
+                });
+                strip.cell(|ui| {
+                    ui.label("Health");
+                });
+            });
+    }
+}
+
+pub struct ProfilePic<'a> {
+    uri: &'a str,
+}
+
+impl<'a> ProfilePic<'a> {
+    pub fn new(uri: &'a str) -> Self {
+        Self { uri }
+    }
+}
+
+impl Widget for ProfilePic<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        Frame::dark_canvas(ui.style())
+            .show(ui, |ui| Image::from_uri(self.uri).shrink_to_fit().ui(ui))
+            .inner
     }
 }
