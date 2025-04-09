@@ -75,7 +75,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
             .get(&self.state.owned_user())
         {
             CharacterSheetWindow {
-                sheet: CharacterSheet::new(char),
+                sheet: CharacterSheet::new(char, &mut self.network),
             }
             .ui(ui);
         }

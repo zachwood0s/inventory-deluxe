@@ -1,16 +1,16 @@
-use common::Character;
-use egui::{CentralPanel, Frame, Image, RichText, TopBottomPanel, Widget, Window};
+use common::{Character, CharacterStats};
+use egui::{CentralPanel, Frame, Image, Response, RichText, TopBottomPanel, Widget, Window};
 use egui_extras::{Size, Strip, StripBuilder};
 
-use crate::widgets::group::Group;
+use crate::listener::CommandQueue;
+use crate::state::character::commands::UpdateCharacterStats;
+use crate::widgets::{group::Group, stat_tile::StatTile, CustomUi};
 
-use super::StatTile;
-
-pub struct CharacterSheetWindow<'a> {
-    pub sheet: CharacterSheet<'a>,
+pub struct CharacterSheetWindow<'a, 'q> {
+    pub sheet: CharacterSheet<'a, 'q>,
 }
 
-impl CharacterSheetWindow<'_> {
+impl CharacterSheetWindow<'_, '_> {
     pub fn ui(self, ui: &mut egui::Ui) {
         Window::new("Character")
             .title_bar(false)
@@ -21,40 +21,58 @@ impl CharacterSheetWindow<'_> {
     }
 }
 
-pub struct CharacterSheet<'a> {
+pub struct CharacterSheet<'a, 'q> {
     character: &'a Character,
+    commands: &'a mut CommandQueue<'q>,
 }
 
-impl<'a> CharacterSheet<'a> {
-    pub fn new(character: &'a Character) -> Self {
-        Self { character }
+impl<'a, 'q> CharacterSheet<'a, 'q> {
+    pub fn new(character: &'a Character, commands: &'a mut CommandQueue<'q>) -> Self {
+        Self {
+            character,
+            commands,
+        }
     }
 
     pub fn ui(self, ui: &mut egui::Ui) {
         let top_bar_height = 100.0;
+
+        let mut new_stats = self.character.stats;
+
         StripBuilder::new(ui)
             .size(Size::exact(top_bar_height))
             .size(Size::remainder())
             .vertical(|mut strip| {
-                strip.strip(|builder| TopBar::new(self.character, 100.0).show_in_strip(builder));
+                strip.strip(|builder| {
+                    TopBar::new(self.character, &mut new_stats, 100.0).show_in_strip(builder)
+                });
                 strip.cell(|ui| {
                     ui.separator();
                 });
             });
+
+        if new_stats != self.character.stats {
+            self.commands.add(UpdateCharacterStats::new(
+                self.character.info.name.clone(),
+                new_stats,
+            ));
+        }
     }
 }
 
 struct TopBar<'a> {
     character: &'a Character,
+    new_stats: &'a mut CharacterStats,
     height: f32,
     hp_width: f32,
     min_name_width: f32,
 }
 
 impl<'a> TopBar<'a> {
-    pub fn new(character: &'a Character, height: f32) -> Self {
+    pub fn new(character: &'a Character, new_stats: &'a mut CharacterStats, height: f32) -> Self {
         Self {
             character,
+            new_stats,
             height,
             hp_width: 250.0,
             min_name_width: 400.0,
@@ -86,8 +104,7 @@ impl<'a> TopBar<'a> {
                     });
                 });
                 strip.cell(|ui| {
-                    let mut ac = self.character.str;
-                    ui.add(StatTile::new("ARMOR", "CLASS", &mut ac));
+                    ui.stat_tile("ARMOR", "CLASS", &mut self.new_stats.str);
                 });
                 strip.cell(|ui| {
                     ui.label("Health");

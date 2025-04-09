@@ -76,7 +76,7 @@ pub struct Character {
     pub stats: CharacterStats,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, Default, Eq, PartialEq)]
 pub struct CharacterStats {
     pub int: i16,
     pub wis: i16,

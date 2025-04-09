@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     io,
     net::{SocketAddr, ToSocketAddrs},
+    process,
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -17,13 +18,18 @@ use common::{
     message::{DndMessage, UnRegisterUser},
     User,
 };
-use postgrest::Postgrest;
 
 mod db_types;
 mod tasks;
+use ctrlc;
 use db_types::*;
+use reqwest::{
+    header::{HeaderMap, HeaderValue, IntoHeaderName},
+    Client,
+};
 use tasks::{board::ServerBoardData, ServerTask};
 use thiserror::Error;
+use tokio::runtime::Handle;
 
 const AUTOSAVE_TIME_IN_SECS: u64 = 30;
 
@@ -156,6 +162,51 @@ enum ServerError {
     UserNotFound(String),
 }
 
+pub struct Postgrest {
+    url: String,
+    schema: Option<String>,
+    headers: HeaderMap,
+    client: Client,
+}
+
+impl Postgrest {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            schema: None,
+            headers: HeaderMap::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(5))
+                .connect_timeout(Duration::from_secs(5))
+                .connection_verbose(true)
+                .build()
+                .unwrap(),
+        }
+    }
+
+    pub fn insert_header(
+        mut self,
+        header_name: impl IntoHeaderName,
+        header_value: impl AsRef<str>,
+    ) -> Self {
+        self.headers.insert(
+            header_name,
+            HeaderValue::from_str(header_value.as_ref()).expect("Invalid header value."),
+        );
+        self
+    }
+
+    pub fn from(&self, table: impl AsRef<str>) -> postgrest::Builder {
+        let url = format!("{}/{}", self.url, table.as_ref());
+        postgrest::Builder::new(
+            url,
+            self.schema.clone(),
+            self.headers.clone(),
+            self.client.clone(),
+        )
+    }
+}
+
 pub struct DndServer {
     addr: SocketAddr,
     board_data: ServerBoardData,
@@ -168,6 +219,7 @@ impl DndServer {
         let addr = (addr, port).to_socket_addrs().unwrap().next().unwrap();
 
         let url = dotenv::var("NEXT_PUBLIC_SUPABASE_URL").unwrap();
+
         let db = Postgrest::new(url).insert_header(
             "apikey",
             dotenv::var("NEXT_PUBLIC_SUPABASE_ANON_KEY").unwrap(),
@@ -190,6 +242,12 @@ impl DndServer {
     pub async fn run(self) {
         let server = Arc::new(self);
 
+        ctrlc::set_handler(move || {
+            info!("Closing down server");
+            process::exit(0)
+        })
+        .expect("Error setting ctrl-c handler");
+
         let autosave = autosave_task(Arc::clone(&server));
         let listener = listener_task(Arc::clone(&server));
 
@@ -197,7 +255,9 @@ impl DndServer {
     }
 
     fn process_task<T: tasks::ServerTask>(&self, ctx: &ListenerCtx, endpoint: Endpoint, task: T) {
-        futures::executor::block_on(self.process_task_async(ctx, endpoint, task));
+        tokio::task::block_in_place(move || {
+            Handle::current().block_on(self.process_task_async(ctx, endpoint, task))
+        });
     }
 
     async fn process_task_async<T: tasks::ServerTask>(

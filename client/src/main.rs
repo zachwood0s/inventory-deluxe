@@ -53,6 +53,13 @@ fn main() -> eframe::Result {
 
             cc.egui_ctx.set_fonts(fonts);
 
+            cc.egui_ctx.style_mut(|style| {
+                style.text_styles.insert(
+                    egui::TextStyle::Name("stat_tile".into()),
+                    egui::FontId::proportional(35.0),
+                );
+            });
+
             Ok(Box::new(MyApp::new(args)))
         }),
     )

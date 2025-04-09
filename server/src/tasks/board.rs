@@ -1,4 +1,5 @@
-use std::sync::{atomic::AtomicBool, Arc, RwLock};
+use std::sync::{atomic::AtomicBool, Arc};
+use tokio::sync::RwLock;
 
 use common::message::{BoardMessage, DndMessage, LoadBoard, Log, LogMessage, SaveBoard};
 use log::info;
@@ -10,19 +11,18 @@ use crate::{
 
 use super::{Broadcast, Response, ServerTask};
 
-#[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Default)]
 pub struct ServerBoardData {
-    #[serde(skip)]
     dirty: Arc<AtomicBool>,
     board: Arc<RwLock<common::board::BoardData>>,
 }
 
 impl ServerBoardData {
-    fn process_message(&self, board_message: BoardMessage) -> Result<(), ServerError> {
+    async fn process_message(&self, board_message: BoardMessage) -> Result<(), ServerError> {
         //Database stuff (match on board message and do the thing the board message thing)
         //Whatever i do it with take a REFERENCE to the board message so I don't have to clone it!! - Cale's Idea
         self.mark_dirty();
-        let mut board = self.board.write().unwrap();
+        let mut board = self.board.write().await;
         board.handle_message(board_message);
 
         Ok(())
@@ -40,8 +40,8 @@ impl ServerBoardData {
         self.dirty.load(std::sync::atomic::Ordering::SeqCst)
     }
 
-    pub fn overwrite_board_data(&self, new_data: common::board::BoardData) {
-        let mut players = self.board.write().unwrap();
+    pub async fn overwrite_board_data(&self, new_data: common::board::BoardData) {
+        let mut players = self.board.write().await;
         *players = new_data;
     }
 }
@@ -68,7 +68,7 @@ impl ServerTask for BoardMessage {
         server: &DndServer,
         ctx: &ListenerCtx,
     ) -> anyhow::Result<()> {
-        server.board_data.process_message(self.clone())?;
+        server.board_data.process_message(self.clone()).await?;
 
         BroadcastBoardMessage(self).process(from, server, ctx).await
     }
@@ -87,7 +87,9 @@ impl ServerTask for SaveBoard {
             return Ok(());
         }
 
-        let json_board_data = serde_json::to_string(&server.board_data)?;
+        let board = server.board_data.board.read().await;
+        let json_board_data = serde_json::to_string(&*board)?;
+        drop(board);
 
         let tag = self.tag.unwrap_or_else(|| String::from("autosave"));
 
@@ -147,7 +149,8 @@ impl ServerTask for LoadBoard {
 
         match board_data {
             Some(board_data) => {
-                server.board_data.overwrite_board_data(board_data);
+                server.board_data.overwrite_board_data(board_data).await;
+
                 Log {
                     user: common::User::server(),
                     payload: LogMessage::Server(format!("Loaded board: {}", self.tag)),
