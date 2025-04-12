@@ -3,6 +3,7 @@ use std::fmt::{Debug, Display};
 use derive_more::{Deref, DerefMut};
 
 pub mod board;
+pub mod data_store;
 pub mod message;
 
 #[derive(
@@ -13,6 +14,7 @@ pub mod message;
     Default,
     Deref,
     DerefMut,
+    derive_more::Display,
     derive_more::Into,
     derive_more::From,
     Hash,
@@ -32,31 +34,64 @@ impl User {
     }
 }
 
-impl Display for User {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.name, f)
-    }
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    Clone,
+    Default,
+    Deref,
+    DerefMut,
+    derive_more::Display,
+    derive_more::Into,
+    derive_more::From,
+    Hash,
+    PartialEq,
+    Eq,
+)]
+#[serde(from = "String")]
+pub struct AbilityId {
+    pub name: String,
 }
+
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    Hash,
+    Eq,
+    PartialEq,
+    derive_more::From,
+    derive_more::Display,
+)]
+#[serde(transparent)]
+pub struct ItemId(i64);
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Item {
-    pub id: i64,
+    pub id: ItemId,
+    #[deprecated]
+    #[serde(skip)]
     pub count: u32,
     pub name: String,
     pub description: String,
-    pub flavor_text: String,
+    pub flavor_text: Option<String>,
     pub quest_item: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Ability {
-    pub name: String,
+    pub name: AbilityId,
     pub description: String,
     pub notes: Option<String>,
     pub ability_type: String,
     pub flavor_text: Option<String>,
     pub resource: String,
     pub max_count: i64,
+    #[deprecated]
+    #[serde(skip)]
     pub uses: i64,
 }
 

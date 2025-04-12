@@ -33,23 +33,23 @@ pub mod commands {
 
             if self.broadcast {
                 // Update item count in DB
-                tx.send(
-                    DndMessage::UpdateAbilityCount(UpdateAbilityCount {
-                        user: user.clone(),
-                        ability_name: ability.name.clone(),
-                        new_count: ability.uses,
-                    })
-                    .into(),
-                );
+                //tx.send(
+                //    DndMessage::UpdateAbilityCount(UpdateAbilityCount {
+                //        user: user.clone(),
+                //        ability_name: ability.name.clone(),
+                //        new_count: ability.uses,
+                //    })
+                //    .into(),
+                //);
 
                 // Send Log Message
-                tx.send(
-                    DndMessage::Log(Log {
-                        user,
-                        payload: LogMessage::SetAbilityCount(ability.name.clone(), self.count),
-                    })
-                    .into(),
-                );
+                //tx.send(
+                //    DndMessage::Log(Log {
+                //        user,
+                //        payload: LogMessage::SetAbilityCount(ability.name.clone(), self.count),
+                //    })
+                //    .into(),
+                //);
             }
         }
     }

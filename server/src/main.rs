@@ -15,6 +15,7 @@ use message_io::{
 };
 
 use common::{
+    data_store::DataStore,
     message::{DndMessage, UnRegisterUser},
     User,
 };
@@ -27,7 +28,11 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, IntoHeaderName},
     Client,
 };
-use tasks::{board::ServerBoardData, ServerTask};
+use tasks::{
+    board::ServerBoardData,
+    data_store::{PullLatestDbData, ServerDataStore},
+    ServerTask,
+};
 use thiserror::Error;
 use tokio::runtime::Handle;
 
@@ -210,6 +215,7 @@ impl Postgrest {
 pub struct DndServer {
     addr: SocketAddr,
     board_data: ServerBoardData,
+    data_store: ServerDataStore,
     users: UserData,
     db: Postgrest,
 }
@@ -230,6 +236,7 @@ impl DndServer {
         let server = Self {
             addr,
             db,
+            data_store: ServerDataStore::default(),
             users: UserData::default(),
             board_data: ServerBoardData::default(),
         };
@@ -254,7 +261,12 @@ impl DndServer {
         tokio::join!(autosave, listener);
     }
 
-    fn process_task<T: tasks::ServerTask>(&self, ctx: &ListenerCtx, endpoint: Endpoint, task: T) {
+    fn process_task<T: tasks::ServerTask>(
+        &self,
+        ctx: &ListenerCtx,
+        endpoint: DndEndpoint,
+        task: T,
+    ) {
         tokio::task::block_in_place(move || {
             Handle::current().block_on(self.process_task_async(ctx, endpoint, task))
         });
@@ -263,10 +275,10 @@ impl DndServer {
     async fn process_task_async<T: tasks::ServerTask>(
         &self,
         ctx: &ListenerCtx,
-        endpoint: Endpoint,
+        endpoint: DndEndpoint,
         task: T,
     ) {
-        let res = task.process(endpoint.into(), self, ctx).await;
+        let res = task.process(endpoint, self, ctx).await;
 
         if let Err(e) = res {
             error!("Error handling server task: {e}");
@@ -314,6 +326,10 @@ async fn listener_task(server: Arc<DndServer>) {
 
         let ctx = ListenerCtx { handler };
 
+        server
+            .process_task_async(&ctx, DndEndpoint::Server, PullLatestDbData)
+            .await;
+
         node_listener.for_each(move |event| {
             if let node::NodeEvent::Network(net_event) = event {
                 match net_event {
@@ -321,14 +337,14 @@ async fn listener_task(server: Arc<DndServer>) {
                     NetEvent::Accepted(_, _) => (),
                     NetEvent::Message(endpoint, input_data) => {
                         let message: DndMessage = bincode::deserialize(input_data).unwrap();
-                        server.process_task(&ctx, endpoint, message);
+                        server.process_task(&ctx, endpoint.into(), message);
                     }
                     NetEvent::Disconnected(endpoint) => {
                         let user = server.users.find_name_for_endpoint(endpoint.into());
 
                         if let Some(name) = user {
                             let name = name.clone();
-                            server.process_task(&ctx, endpoint, UnRegisterUser { name });
+                            server.process_task(&ctx, endpoint.into(), UnRegisterUser { name });
                         }
                     }
                 }

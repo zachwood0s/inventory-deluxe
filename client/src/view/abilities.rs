@@ -115,7 +115,7 @@ impl Widget for AbilityWidget<'_, '_> {
                         egui::Frame::none().show(ui, |ui| {
                             ui.label(egui::RichText::new(&ability.ability_type).size(10.0));
                         });
-                        ui.label(egui::RichText::new(&ability.name).size(14.0));
+                        //ui.label(egui::RichText::new(&ability.name).size(14.0));
                     });
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

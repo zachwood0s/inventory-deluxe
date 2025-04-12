@@ -9,6 +9,17 @@ use crate::{
 
 use super::{Broadcast, Response, ReturnToSender, ServerTask};
 
+// TODO: The more I think about it the more I think its dumb to be interfacing directly with the DB
+// this much. I think I should have a layer between, some DB manager, which pulls in all the data
+// on start and also can save all data in the end or when a user drops. That way I can freely
+// pound the server with requests but none are hitting the DB so we good. Then periodically or upon
+// exit or upon disconnect I can trigger a DB save
+// Process would be:
+// 1. on boot pull down full DB of data (who gives a shit)
+// 2. recieve requests from users, send from in memory
+// 2a. server tasks would be super simple then, just a DB manager query for the most part
+// 3. on disconnect/autosave/shutdown send data back to DB
+
 /// Retrieves all of the available characters in the DB
 pub struct GetCharacterList;
 impl Response for GetCharacterList {

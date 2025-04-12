@@ -911,11 +911,15 @@ dependencies = [
 name = "common"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bincode",
  "derive_more",
  "emath",
  "itertools 0.13.0",
+ "log",
  "serde",
+ "thiserror 2.0.11",
+ "tryvial",
  "typetag",
  "uuid",
 ]
@@ -3870,6 +3874,7 @@ dependencies = [
  "emath",
  "env_logger",
  "futures",
+ "itertools 0.13.0",
  "log",
  "message-io",
  "postgrest",
@@ -4438,6 +4443,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
+name = "tryvial"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edebbe6f32d5a62f44fc7d7a7e79963bc4cac720ba63cc1e00ec17832d9464ee"
+dependencies = [
+ "tryvial-proc",
+]
+
+[[package]]
+name = "tryvial-proc"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78d7245fd71d5be726bdc4dbe7e1b94f8d7627c5ccfeb6d624deb96542d0d149"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "venial",
+]
+
+[[package]]
 name = "ttf-parser"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4686,6 +4711,16 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "venial"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61584a325b16f97b5b25fcc852eb9550843a251057a5e3e5992d2376f3df4bb2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
 
 [[package]]
 name = "version-compare"

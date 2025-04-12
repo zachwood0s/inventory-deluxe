@@ -260,8 +260,8 @@ impl PropertiesDisplay for PlayerNameSelector<'_> {
             .selected_text(selected_text.deref())
             .show_ui(ui, |ui| {
                 ui.selectable_value(self.0, None, "None");
-                for character in ctx.state.character_list.iter() {
-                    ui.selectable_value(self.0, Some(character.clone().into()), character);
+                for character in ctx.state.data.character_names() {
+                    ui.selectable_value(self.0, Some(character.clone()), character.deref());
                 }
             });
 

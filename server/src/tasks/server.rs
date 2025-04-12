@@ -5,7 +5,7 @@ use common::{
 use log::info;
 
 use crate::{
-    tasks::{board::*, db::*},
+    tasks::{board::*, data_store::SendLatestDbData, db::*},
     ClientInfo, DndEndpoint, DndServer, ListenerCtx, ServerError,
 };
 
@@ -25,7 +25,7 @@ impl ServerTask for RegisterUser {
 
         tokio::try_join!(
             UserList.process(endpoint, server, ctx),
-            GetCharacterList.process(endpoint, server, ctx),
+            SendLatestDbData.process(endpoint, server, ctx),
             UserAdded(name.clone()).process(endpoint, server, ctx),
             Log {
                 user: User::server(),

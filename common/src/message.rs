@@ -1,6 +1,7 @@
 use crate::{
-    board::{BoardPiece, PieceId},
-    Ability, Character, CharacterSemiStatic, CharacterStats, Item, User,
+    board::{BoardMessage, BoardPiece, PieceId},
+    data_store::DataMessage,
+    Ability, Character, CharacterSemiStatic, CharacterStats, Item, ItemId, User,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -33,14 +34,6 @@ pub enum LogMessage {
     Roll(DieRoll),
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub enum BoardMessage {
-    AddOrUpdatePiece(BoardPiece),
-    DeletePiece(PieceId),
-    StoreBackpackPiece(BackpackPiece),
-    RemoveBackpackPiece(String),
-}
-
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
 pub struct SaveBoard {
     pub tag: Option<String>,
@@ -62,11 +55,13 @@ pub struct UnRegisterUser {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+#[deprecated]
 pub struct RetrieveCharacterData {
     pub user: User,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+#[deprecated]
 pub struct UpdateAbilityCount {
     pub user: User,
     pub ability_name: String,
@@ -74,13 +69,15 @@ pub struct UpdateAbilityCount {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+#[deprecated]
 pub struct UpdateItemCount {
     pub user: User,
-    pub item_id: i64,
+    pub item_id: ItemId,
     pub new_count: u32,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+#[deprecated]
 pub struct UpdatePowerSlotCount {
     pub user: User,
     pub new_count: i16,
@@ -94,12 +91,14 @@ pub struct BackpackPiece {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+#[deprecated]
 pub struct UpdateSkills {
     pub user: User,
     pub skills: Vec<String>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+#[deprecated]
 pub struct UpdateCharacterStats {
     pub user: User,
     pub new_stats: CharacterStats,
@@ -114,12 +113,18 @@ pub enum DndMessage {
     RegisterUser(RegisterUser),
     UnregisterUser(UnRegisterUser),
     RetrieveCharacterData(RetrieveCharacterData),
+    #[deprecated]
     UpdateItemCount(UpdateItemCount),
+    #[deprecated]
     UpdateAbilityCount(UpdateAbilityCount),
+    #[deprecated]
     UpdatePowerSlotCount(UpdatePowerSlotCount),
 
     // Character
+    DataMessage(DataMessage),
+    #[deprecated]
     UpdateCharacterStats(UpdateCharacterStats),
+    #[deprecated]
     UpdateSkills(UpdateSkills),
 
     // Board

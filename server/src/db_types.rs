@@ -1,9 +1,8 @@
-
-use common::{Ability, Item};
+use common::{Ability, AbilityId, Item, ItemId};
 
 #[derive(serde::Deserialize, Clone)]
 pub struct DBItem {
-    id: i64,
+    id: ItemId,
     name: String,
     description: String,
     flavor_text: String,
@@ -24,7 +23,7 @@ impl Into<common::Item> for DBItemResponse {
             count: self.count,
             name: self.items.name,
             description: self.items.description,
-            flavor_text: self.items.flavor_text,
+            flavor_text: Some(self.items.flavor_text),
             quest_item: self.items.quest_item,
         }
     }
@@ -32,7 +31,7 @@ impl Into<common::Item> for DBItemResponse {
 
 #[derive(serde::Deserialize, Clone)]
 pub struct DBAbility {
-    name: String,
+    name: AbilityId,
     description: String,
     notes: Option<String>,
     ability_type: String,

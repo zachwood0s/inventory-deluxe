@@ -1,6 +1,9 @@
+use common::message::DndMessage;
+
 use crate::{DndEndpoint, DndServer, ListenerCtx, ToError};
 
 pub mod board;
+pub mod data_store;
 pub mod db;
 pub mod log;
 pub mod server;
@@ -20,7 +23,7 @@ pub struct Broadcast;
 pub trait Response: Send + Sync {
     type Action;
     // TODO: Should I just restrict this to Into<DNDMessage>?
-    type ResponseData: serde::Serialize;
+    type ResponseData: Into<DndMessage>;
     fn response(
         self,
         endpoint: DndEndpoint,
@@ -63,7 +66,8 @@ where
         ctx: &ListenerCtx,
     ) -> anyhow::Result<()> {
         let resp_msg = t.response(endpoint, server).await?;
-        let encoded = bincode::serialize(&resp_msg)?;
+        let message = resp_msg.into();
+        let encoded = bincode::serialize(&message)?;
 
         // Only support sending responses to clients
         let endpoint = endpoint.client()?;
@@ -85,7 +89,8 @@ where
         ctx: &ListenerCtx,
     ) -> anyhow::Result<()> {
         let resp_msg = t.response(endpoint, server).await?;
-        let encoded = bincode::serialize(&resp_msg)?;
+        let message = resp_msg.into();
+        let encoded = bincode::serialize(&message)?;
 
         server.users.foreach(|(_name, user)| {
             if user.endpoint != endpoint {

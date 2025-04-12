@@ -21,7 +21,7 @@ impl ClientBoard {
 }
 
 pub mod commands {
-    use common::board::{BoardPiece, PieceId};
+    use common::board::{BoardMessage, BoardPiece, PieceId};
 
     use super::*;
 

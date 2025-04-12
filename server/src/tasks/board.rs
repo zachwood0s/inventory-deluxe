@@ -1,7 +1,10 @@
 use std::sync::{atomic::AtomicBool, Arc};
 use tokio::sync::RwLock;
 
-use common::message::{BoardMessage, DndMessage, LoadBoard, Log, LogMessage, SaveBoard};
+use common::{
+    board::BoardMessage,
+    message::{DndMessage, LoadBoard, Log, LogMessage, SaveBoard},
+};
 use log::info;
 
 use crate::{
@@ -46,31 +49,18 @@ impl ServerBoardData {
     }
 }
 
-pub struct BroadcastBoardMessage(BoardMessage);
-impl Response for BroadcastBoardMessage {
+impl Response for BoardMessage {
     type Action = Broadcast;
-    type ResponseData = DndMessage;
+    type ResponseData = BoardMessage;
 
     async fn response(
         self,
         _: DndEndpoint,
-        _: &crate::DndServer,
-    ) -> anyhow::Result<Self::ResponseData> {
-        let Self(msg) = self;
-        Ok(DndMessage::BoardMessage(msg))
-    }
-}
-
-impl ServerTask for BoardMessage {
-    async fn process(
-        self,
-        from: DndEndpoint,
         server: &DndServer,
-        ctx: &ListenerCtx,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Self::ResponseData> {
         server.board_data.process_message(self.clone()).await?;
 
-        BroadcastBoardMessage(self).process(from, server, ctx).await
+        Ok(self)
     }
 }
 

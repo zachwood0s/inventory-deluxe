@@ -5,7 +5,7 @@ use common::board::BoardData;
 use crate::prelude::*;
 
 pub mod commands {
-    use common::board::{BoardPiece, PieceId};
+    use common::board::{BoardMessage, BoardPiece, PieceId};
 
     use super::*;
 

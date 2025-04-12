@@ -13,3 +13,7 @@ emath = { workspace = true }
 typetag = { workspace = true }
 derive_more = { workspace = true }
 itertools = { workspace = true }
+tryvial = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }

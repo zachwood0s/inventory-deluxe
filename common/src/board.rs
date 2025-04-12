@@ -7,33 +7,23 @@ use emath::{Pos2, Rect};
 use itertools::{Itertools, MinMaxResult};
 
 use crate::{
-    message::{BackpackPiece, BoardMessage},
+    message::{BackpackPiece, DndMessage},
     User,
 };
 
-// Common:
-// - Position
-// - Size
-// - Layer
-//
-// Player Pieces
-// - Modifiable properties
-//   - Status effects
-//   - Health
-//   - name
-//   - Image
-//   - Layer
-//   - Size
-//   - Position
-// Map Piece (map decoration)
-// - Modifiable properties
-//   - Image
-//   - Layer
-//   - Size
-//   - Position
-// InternalDecoration
-// - Image (internal)
-// - draggable (true/false)
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub enum BoardMessage {
+    AddOrUpdatePiece(BoardPiece),
+    DeletePiece(PieceId),
+    StoreBackpackPiece(BackpackPiece),
+    RemoveBackpackPiece(String),
+}
+// TODO: Get rid of this once we use derive_more::Into on the DndMessage enum
+impl From<BoardMessage> for DndMessage {
+    fn from(value: BoardMessage) -> Self {
+        DndMessage::BoardMessage(value)
+    }
+}
 
 #[derive(
     serde::Serialize,
