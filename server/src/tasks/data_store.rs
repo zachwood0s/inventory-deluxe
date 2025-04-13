@@ -9,7 +9,7 @@ use itertools::Itertools;
 use log::info;
 use tokio::{sync::RwLock, try_join};
 
-use crate::{DndEndpoint, DndServer, ListenerCtx, ResponseTextWithError, ServerError, ToError};
+use crate::{DndEndpoint, DndServer, ListenerCtx, ResponseTextWithError, ServerError};
 
 use super::{Broadcast, Response, ReturnToSender, ServerTask};
 

@@ -68,12 +68,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         ui.visuals_mut().code_bg_color = Color32::TRANSPARENT;
         tab.kind.ui(ui, self.state, &mut self.network);
 
-        if let Some(char) = self
-            .state
-            .character
-            .characters
-            .get(&self.state.owned_user())
-        {
+        if let Some(char) = self.state.data.get_character(&self.state.owned_user()) {
             CharacterSheetWindow {
                 sheet: CharacterSheet::new(char, &mut self.network),
             }

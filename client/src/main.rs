@@ -58,6 +58,10 @@ fn main() -> eframe::Result {
                     egui::TextStyle::Name("stat_tile".into()),
                     egui::FontId::proportional(35.0),
                 );
+                style.text_styles.insert(
+                    egui::TextStyle::Name("stat_tile_edit".into()),
+                    egui::FontId::proportional(33.0),
+                );
             });
 
             Ok(Box::new(MyApp::new(args)))

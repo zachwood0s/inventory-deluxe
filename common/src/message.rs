@@ -56,12 +56,6 @@ pub struct UnRegisterUser {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
 #[deprecated]
-pub struct RetrieveCharacterData {
-    pub user: User,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
-#[deprecated]
 pub struct UpdateAbilityCount {
     pub user: User,
     pub ability_name: String,
@@ -112,20 +106,9 @@ pub enum DndMessage {
     // From Client
     RegisterUser(RegisterUser),
     UnregisterUser(UnRegisterUser),
-    RetrieveCharacterData(RetrieveCharacterData),
-    #[deprecated]
-    UpdateItemCount(UpdateItemCount),
-    #[deprecated]
-    UpdateAbilityCount(UpdateAbilityCount),
-    #[deprecated]
-    UpdatePowerSlotCount(UpdatePowerSlotCount),
 
     // Character
     DataMessage(DataMessage),
-    #[deprecated]
-    UpdateCharacterStats(UpdateCharacterStats),
-    #[deprecated]
-    UpdateSkills(UpdateSkills),
 
     // Board
     BoardMessage(BoardMessage),

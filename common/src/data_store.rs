@@ -4,7 +4,8 @@ use log::error;
 use thiserror::Error;
 
 use crate::{
-    message::DndMessage, Ability, AbilityId, Character, CharacterStats, Item, ItemId, User,
+    message::DndMessage, Ability, AbilityId, Character, CharacterSemiStatic, CharacterStats, Item,
+    ItemId, User,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, derive_more::From)]
@@ -108,6 +109,18 @@ impl CharacterStorage {
         self.items.get_mut(id).ok_or_else(|| {
             DataStoreError::CharacterDoesNotHaveItem(self.data.info.name.clone(), *id).into()
         })
+    }
+
+    pub fn stats(&self) -> &CharacterStats {
+        &self.data.stats
+    }
+
+    pub fn info(&self) -> &CharacterSemiStatic {
+        &self.data.info
+    }
+
+    pub fn name(&self) -> &User {
+        &self.data.info.name
     }
 }
 

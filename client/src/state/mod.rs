@@ -22,9 +22,8 @@ impl DndState {
         self.character.process(&message);
         self.client_board.process(&message);
 
-        match message {
-            DndMessage::DataMessage(msg) => self.data.handle_message(msg),
-            _ => {}
+        if let DndMessage::DataMessage(msg) = message {
+            self.data.handle_message(msg);
         }
     }
 

@@ -23,18 +23,16 @@ impl CharacterState {
             DndMessage::AbilityList(abilities) => {
                 self.abilities = abilities.clone();
             }
-            DndMessage::UpdateCharacterStats(msg) => {
-                if let Some(character) = self.characters.get_mut(&msg.user) {
-                    character.stats = msg.new_stats;
-                }
-            }
             _ => {}
         }
     }
 }
 
 pub mod commands {
-    use common::CharacterStats;
+    use common::{
+        data_store::{self, DataMessage, UpdateSkills},
+        CharacterStats,
+    };
 
     use crate::prelude::*;
 
@@ -53,53 +51,45 @@ pub mod commands {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
             let user = state.owned_user();
 
-            let Some(item) = state.character.items.get_mut(self.item_idx) else {
-                error!(
-                    "Trying to use item which no longer exists. Idx: {}",
-                    self.item_idx
-                );
+            let Ok(character) = state.data.get_character_mut(&user) else {
+                error!("Can't find charactero: {}", user);
                 return;
             };
 
-            item.count = item.count.saturating_sub(self.count);
+            //let Some(item) = character.get_item_mut(self.)
 
-            // Update item count in DB
-            tx.send(
-                DndMessage::UpdateItemCount(UpdateItemCount {
-                    user: user.clone(),
-                    item_id: item.id,
-                    new_count: item.count,
-                })
-                .into(),
-            );
+            //item.count = item.count.saturating_sub(self.count);
 
-            // Send Log Message
-            tx.send(
-                DndMessage::Log(Log {
-                    user,
-                    payload: LogMessage::UseItem(item.name.clone(), self.count),
-                })
-                .into(),
-            );
+            //let data_message = data_store::UpdateItemCount {
+            //    user,
+            //    item_id: item.id,
+            //    new_count: item.count,
+            //};
+
+            //// Update item count in DB
+            ////tx.send(
+            ////    DndMessage::UpdateItemCount(UpdateItemCount {
+            ////        user: user.clone(),
+            ////        item_id: item.id,
+            ////        new_count: item.count,
+            ////    })
+            ////    .into(),
+            ////);
+
+            //// Send Log Message
+            //tx.send(
+            //    DndMessage::Log(Log {
+            //        user,
+            //        payload: LogMessage::UseItem(item.name.clone(), self.count),
+            //    })
+            //    .into(),
+            //);
 
             // Remove immediately from display if no more count.
             // (DB will also do this)
-            if item.count == 0 {
-                state.character.items.remove(self.item_idx);
-            }
-        }
-    }
-
-    pub struct RefreshCharacter;
-
-    impl Command for RefreshCharacter {
-        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            tx.send(
-                DndMessage::RetrieveCharacterData(RetrieveCharacterData {
-                    user: state.owned_user(),
-                })
-                .into(),
-            )
+            //if item.count == 0 {
+            //    state.character.items.remove(self.item_idx);
+            //}
         }
     }
 
@@ -121,21 +111,10 @@ pub mod commands {
                 return;
             };
 
-            let skills = &mut character.info.skills;
+            let skills = character.info.skills.clone();
+            let message = UpdateSkills { user, skills };
 
-            if skills.contains(&self.skill_name) {
-                skills.retain(|x| x != &self.skill_name);
-            } else {
-                skills.push(self.skill_name);
-            }
-
-            tx.send(
-                DndMessage::UpdateSkills(UpdateSkills {
-                    user,
-                    skills: skills.clone(),
-                })
-                .into(),
-            );
+            tx.send(DndMessage::DataMessage(message.into()).into());
         }
     }
 
@@ -154,13 +133,10 @@ pub mod commands {
         fn execute(self: Box<Self>, _: &mut DndState, tx: &EventSender<Signal>) {
             let Self { user, new_stats } = *self;
 
-            tx.send(
-                DndMessage::UpdateCharacterStats(common::message::UpdateCharacterStats {
-                    user,
-                    new_stats,
-                })
-                .into(),
-            )
+            let data: data_store::DataMessage =
+                data_store::UpdateCharacterStats { user, new_stats }.into();
+
+            tx.send(DndMessage::DataMessage(data).into())
         }
     }
 }

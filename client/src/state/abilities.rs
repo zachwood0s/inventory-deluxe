@@ -76,13 +76,13 @@ pub mod commands {
             *power_slots = self.count;
 
             // Update item count in DB
-            tx.send(
-                DndMessage::UpdatePowerSlotCount(UpdatePowerSlotCount {
-                    user,
-                    new_count: *power_slots,
-                })
-                .into(),
-            );
+            //tx.send(
+            //    DndMessage::DataMessage(Update {
+            //        user,
+            //        new_count: *power_slots,
+            //    })
+            //    .into(),
+            //);
 
             /*
             // Send Log Message
@@ -94,18 +94,6 @@ pub mod commands {
                 .into(),
             );
             */
-        }
-    }
-    pub struct RefreshCharacter;
-
-    impl Command for RefreshCharacter {
-        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
-            tx.send(
-                DndMessage::RetrieveCharacterData(RetrieveCharacterData {
-                    user: state.owned_user(),
-                })
-                .into(),
-            )
         }
     }
 }

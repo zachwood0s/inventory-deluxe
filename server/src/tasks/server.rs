@@ -1,11 +1,11 @@
 use common::{
-    message::{DndMessage, Log, LogMessage, RegisterUser, RetrieveCharacterData, UnRegisterUser},
+    message::{DndMessage, Log, LogMessage, RegisterUser, UnRegisterUser},
     User,
 };
 use log::info;
 
 use crate::{
-    tasks::{board::*, data_store::SendLatestDbData, db::*},
+    tasks::{board::*, data_store::SendLatestDbData},
     ClientInfo, DndEndpoint, DndServer, ListenerCtx, ServerError,
 };
 
@@ -32,7 +32,8 @@ impl ServerTask for RegisterUser {
                 payload: LogMessage::Joined(name.clone()),
             }
             .process(endpoint, server, ctx),
-            InsertUser(name.clone()).process(endpoint, server, ctx)
+            InsertUser(name.clone()).process(endpoint, server, ctx),
+            SendInitialBoardData.process(endpoint, server, ctx),
         )?;
 
         info!("Added user '{}'", name);
@@ -89,26 +90,6 @@ impl ServerTask for UnRegisterUser {
         .await?;
 
         info!("Removed participant '{}'", name);
-
-        Ok(())
-    }
-}
-
-impl ServerTask for RetrieveCharacterData {
-    async fn process(
-        self,
-        endpoint: DndEndpoint,
-        server: &DndServer,
-        ctx: &ListenerCtx,
-    ) -> anyhow::Result<()> {
-        let Self { user } = self;
-
-        tokio::try_join!(
-            GetItemList(&user).process(endpoint, server, ctx),
-            GetAbilityList(&user).process(endpoint, server, ctx),
-            GetCharacterStats(&user).process(endpoint, server, ctx),
-            SendInitialBoardData.process(endpoint, server, ctx),
-        )?;
 
         Ok(())
     }

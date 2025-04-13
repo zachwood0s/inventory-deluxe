@@ -1,6 +1,6 @@
 use std::{fmt::Display, ops::Deref};
 
-use crate::state::character::commands::{RefreshCharacter, ToggleSkill, UpdateCharacterStats};
+use crate::state::character::commands::{ToggleSkill, UpdateCharacterStats};
 use egui::{Align, Color32, Frame, Margin, Resize, RichText, Widget};
 use egui_extras::{Column, TableBuilder};
 
@@ -195,11 +195,6 @@ impl DndTabImpl for Character {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading(char.info.name.deref());
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    if ui.button("Refresh").clicked() {
-                        commands.add(RefreshCharacter);
-                    }
-                })
             });
 
             ui.add_space(4.0);

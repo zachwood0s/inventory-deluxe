@@ -15,7 +15,6 @@ use message_io::{
 };
 
 use common::{
-    data_store::DataStore,
     message::{DndMessage, UnRegisterUser},
     User,
 };
@@ -296,16 +295,11 @@ impl ServerTask for DndMessage {
         match self {
             DndMessage::RegisterUser(msg) => msg.process(endpoint, server, ctx).await,
             DndMessage::UnregisterUser(msg) => msg.process(endpoint, server, ctx).await,
-            DndMessage::RetrieveCharacterData(msg) => msg.process(endpoint, server, ctx).await,
-            DndMessage::UpdateCharacterStats(msg) => msg.process(endpoint, server, ctx).await,
-            DndMessage::UpdateItemCount(msg) => msg.process(endpoint, server, ctx).await,
-            DndMessage::UpdateAbilityCount(msg) => msg.process(endpoint, server, ctx).await,
-            DndMessage::UpdateSkills(msg) => msg.process(endpoint, server, ctx).await,
-            DndMessage::UpdatePowerSlotCount(msg) => msg.process(endpoint, server, ctx).await,
             DndMessage::BoardMessage(msg) => msg.process(endpoint, server, ctx).await,
             DndMessage::SaveBoard(msg) => msg.process(endpoint, server, ctx).await,
             DndMessage::LoadBoard(msg) => msg.process(endpoint, server, ctx).await,
             DndMessage::Log(msg) => msg.process(endpoint, server, ctx).await,
+            DndMessage::DataMessage(msg) => msg.process(endpoint, server, ctx).await,
             _ => Err(anyhow!("Unhandled message {self:?}")),
         }
     }

@@ -1,10 +1,7 @@
-use std::{
-    io,
-    sync::mpsc::Sender,
-};
+use std::{io, sync::mpsc::Sender};
 
 use common::{
-    message::{DndMessage, RegisterUser, RetrieveCharacterData},
+    message::{DndMessage, RegisterUser},
     User,
 };
 use log::error;
@@ -82,15 +79,6 @@ impl DndListener {
                             self.handler
                                 .network()
                                 .send(self.server_endpoint, &output_data);
-
-                            let message =
-                                DndMessage::RetrieveCharacterData(RetrieveCharacterData {
-                                    user: self.user.clone(),
-                                });
-                            let output_data = bincode::serialize(&message).unwrap();
-                            self.handler
-                                .network()
-                                .send(self.server_endpoint, &output_data);
                         } else {
                             println!("Could not connect to the server");
                         }
@@ -114,9 +102,7 @@ impl DndListener {
                         .send(self.server_endpoint, &input_data);
 
                     // Immediately send the message back to ourself
-                    //if matches!(msg, DndMessage::BoardMessage(_)) {
                     self.handler.signals().send(Signal::RecieveMessage(msg))
-                    //}
                 }
                 Signal::RecieveMessage(msg) => {
                     self.tx.send(msg).unwrap();
