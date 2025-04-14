@@ -70,7 +70,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 
         if let Some(char) = self.state.data.get_character(&self.state.owned_user()) {
             CharacterSheetWindow {
-                sheet: CharacterSheet::new(char, &mut self.network),
+                sheet: CharacterSheet::new(char, self.state, &mut self.network),
             }
             .ui(ui);
         }

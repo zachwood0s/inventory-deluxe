@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
 use common::{message::DndMessage, Ability, Item};
+use egui_dock::DockState;
+
+use crate::view::character_sheet::{AbilitiesTab, AttributesTab, CharacterTab};
 
 #[derive(Default)]
 pub struct CharacterState {

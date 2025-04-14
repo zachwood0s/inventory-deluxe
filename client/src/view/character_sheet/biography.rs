@@ -1,14 +1,14 @@
 use super::CharacterTabImpl;
 
 #[derive(Clone)]
-pub struct AttributesTab;
+pub struct BiographyTab;
 
-impl CharacterTabImpl for AttributesTab {
+impl CharacterTabImpl for BiographyTab {
     fn ui(&self, ui: &mut egui::Ui, ctx: super::CharacterCtx) {
-        ui.label("attrs");
+        ui.label("bio");
     }
 
     fn title(&self) -> &str {
-        "ATTRIBUTES"
+        "BIOGRAPHY"
     }
 }

@@ -9,7 +9,7 @@ edition = "2021"
 common = { path = "../common" }
 eframe = "0.31.1"
 egui = { version = "0.31.1", features = ["serde"] }
-egui_dock = "0.16.0"
+egui_dock = { version = "0.16.0", features = ["serde"] }
 egui_extras = { version = "0.31.1", features = ["all_loaders"] }
 image = { version = "0.25", features = ["jpeg", "png", "gif"] }
 env_logger = { workspace = true }

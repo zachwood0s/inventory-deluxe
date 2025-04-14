@@ -1,18 +1,24 @@
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
+use std::sync::{Arc, Mutex};
 
 use common::data_store::CharacterStorage;
 use common::{CharStat, Character, CharacterStats};
 use egui::{
     CentralPanel, Color32, Frame, Image, Margin, Response, RichText, SidePanel, Stroke,
-    TopBottomPanel, Vec2, Widget, Window,
+    TopBottomPanel, UiBuilder, Vec2, Widget, Window,
 };
+use egui_dock::{DockArea, DockState};
 use egui_extras::{Size, Strip, StripBuilder};
 
 use crate::listener::CommandQueue;
 use crate::state::character::commands::UpdateCharacterStats;
+use crate::state::DndState;
 use crate::widgets::{group::Group, stat_tile::StatTile, CustomUi};
 
-use super::SkillsTable;
+use super::{
+    AbilitiesTab, AttributesTab, BiographyTab, CharacterTab, CharacterTabs, InventoryTab,
+    SkillsTable,
+};
 
 pub struct CharacterSheetWindow<'a, 'q> {
     pub sheet: CharacterSheet<'a, 'q>,
@@ -29,15 +35,50 @@ impl CharacterSheetWindow<'_, '_> {
     }
 }
 
+#[derive(Clone)]
+struct State {
+    /// Dock state for this character sheet
+    /// Wrapped in Arc/Mutex to prevent cloning of whole state on each frame
+    dock_state: Arc<Mutex<DockState<CharacterTab>>>,
+}
+
+impl State {
+    #[inline(always)]
+    fn load(ui: &egui::Ui, id: egui::Id) -> Self {
+        ui.data(|d| d.get_temp(id)).unwrap_or_else(|| {
+            let dock_state = DockState::<CharacterTab>::new(vec![
+                Arc::new(AbilitiesTab),
+                Arc::new(AttributesTab),
+                Arc::new(InventoryTab),
+                Arc::new(BiographyTab),
+            ]);
+            let dock_state = Arc::new(Mutex::new(dock_state));
+
+            Self { dock_state }
+        })
+    }
+
+    #[inline(always)]
+    pub fn store(self, ui: &egui::Ui, id: egui::Id) {
+        ui.data_mut(|d| d.insert_temp(id, self));
+    }
+}
+
 pub struct CharacterSheet<'a, 'q> {
     character: &'a CharacterStorage,
+    state: &'a DndState,
     commands: &'a mut CommandQueue<'q>,
 }
 
 impl<'a, 'q> CharacterSheet<'a, 'q> {
-    pub fn new(character: &'a CharacterStorage, commands: &'a mut CommandQueue<'q>) -> Self {
+    pub fn new(
+        character: &'a CharacterStorage,
+        state: &'a DndState,
+        commands: &'a mut CommandQueue<'q>,
+    ) -> Self {
         Self {
             character,
+            state,
             commands,
         }
     }
@@ -45,6 +86,10 @@ impl<'a, 'q> CharacterSheet<'a, 'q> {
     pub fn ui(self, ui: &mut egui::Ui) {
         let top_bar_height = 100.0;
         let stat_bar_height = 100.0;
+
+        let id = ui.make_persistent_id(self.character.name());
+
+        let state = State::load(ui, id);
 
         let mut new_stats = *self.character.stats();
 
@@ -68,7 +113,26 @@ impl<'a, 'q> CharacterSheet<'a, 'q> {
                             SkillsTable::new(self.character, self.commands).show(ui);
                         });
 
-                    CentralPanel::default().show_inside(ui, |ui| ui.label("Scoingo"));
+                    let mut tab_viewer = CharacterTabs {
+                        character: self.character,
+                        state: self.state,
+                        commands: self.commands,
+                    };
+
+                    CentralPanel::default().show_inside(ui, |ui| {
+                        let mut tabs = state.dock_state.lock().unwrap();
+                        let style = egui_dock::Style::from_egui(ui.style());
+
+                        DockArea::new(&mut tabs)
+                            .id("child_dock_area".into())
+                            .style(style)
+                            .show_add_buttons(false)
+                            .show_add_popup(false)
+                            .draggable_tabs(false)
+                            .show_leaf_collapse_buttons(false)
+                            .show_leaf_close_all_buttons(false)
+                            .show_inside(ui, &mut tab_viewer);
+                    });
                 });
             });
 
@@ -78,6 +142,9 @@ impl<'a, 'q> CharacterSheet<'a, 'q> {
                 new_stats,
             ));
         }
+
+        // Write back the final state
+        state.store(ui, id);
     }
 }
 
