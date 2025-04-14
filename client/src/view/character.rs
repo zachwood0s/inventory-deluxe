@@ -236,12 +236,12 @@ impl DndTabImpl for Character {
             ui.separator();
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                StatWidget::new("CHA", char.cha).ui(ui);
-                StatWidget::new("STR", char.str).ui(ui);
-                StatWidget::new("WIS", char.wis).ui(ui);
-                StatWidget::new("INT", char.int).ui(ui);
-                StatWidget::new("DEX", char.dex).ui(ui);
-                StatWidget::new("CON", char.con).ui(ui);
+                StatWidget::new("CHA", *char.cha).ui(ui);
+                StatWidget::new("STR", *char.str).ui(ui);
+                StatWidget::new("WIS", *char.wis).ui(ui);
+                StatWidget::new("INT", *char.int).ui(ui);
+                StatWidget::new("DEX", *char.dex).ui(ui);
+                StatWidget::new("CON", *char.con).ui(ui);
             });
             ui.add_space(6.0);
             ui.separator();

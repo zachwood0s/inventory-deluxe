@@ -1,13 +1,18 @@
+use std::ops::DerefMut;
+
 use common::data_store::CharacterStorage;
-use common::{Character, CharacterStats};
+use common::{CharStat, Character, CharacterStats};
 use egui::{
-    CentralPanel, Frame, Image, Margin, Response, RichText, TopBottomPanel, Vec2, Widget, Window,
+    CentralPanel, Color32, Frame, Image, Margin, Response, RichText, SidePanel, Stroke,
+    TopBottomPanel, Vec2, Widget, Window,
 };
 use egui_extras::{Size, Strip, StripBuilder};
 
 use crate::listener::CommandQueue;
 use crate::state::character::commands::UpdateCharacterStats;
 use crate::widgets::{group::Group, stat_tile::StatTile, CustomUi};
+
+use super::SkillsTable;
 
 pub struct CharacterSheetWindow<'a, 'q> {
     pub sheet: CharacterSheet<'a, 'q>,
@@ -55,6 +60,15 @@ impl<'a, 'q> CharacterSheet<'a, 'q> {
                 strip.strip(|builder| StatBar::new(&mut new_stats).show_in_strip(builder));
                 strip.cell(|ui| {
                     ui.separator();
+
+                    SidePanel::left("character_left")
+                        .min_width(300.0)
+                        .resizable(false)
+                        .show_inside(ui, |ui| {
+                            SkillsTable::new(self.character, self.commands).show(ui);
+                        });
+
+                    CentralPanel::default().show_inside(ui, |ui| ui.label("Scoingo"));
                 });
             });
 
@@ -111,8 +125,9 @@ impl<'a> TopBar<'a> {
                     });
                 });
                 strip.cell(|ui| {
-                    let frame = Frame::canvas(ui.style()).outer_margin(5);
-                    StatTile::new("ARMOR", "CLASS", &mut self.new_stats.str).frame(frame).ui(ui);
+                    let frame = Frame::canvas(ui.style()).inner_margin(Margin::symmetric(0, 6)).outer_margin(5);
+                    let stat = self.new_stats.get_stat_mut(CharStat::Ac);
+                    StatTile::new("ARMOR", "CLASS", stat.deref_mut()).frame(frame).ui(ui);
                 });
                 strip.cell(|ui| {
                     ui.label("Health");
@@ -130,19 +145,20 @@ impl<'a> StatBar<'a> {
         Self { new_stats }
     }
 
-    fn mod_score(value: i16) -> i16 {
-        (value / 2) - 5
-    }
-
     pub fn show_in_strip(self, builder: egui_extras::StripBuilder) {
-        fn stat(ui: &mut egui::Ui, label: &str, val: &mut i16) {
+        fn stat(ui: &mut egui::Ui, stats: &mut CharacterStats, stat: CharStat) {
             let frame = Frame::canvas(ui.style()).inner_margin(Margin::symmetric(0, 10));
 
-            let modifier = StatBar::mod_score(*val);
-            let prefix = if modifier > 0 { "+" } else { "" };
-            let mod_score = format!("{prefix}{modifier}");
+            let stat_val = stats.get_stat_mut(stat);
+            let mod_score = if stat.has_modifier() {
+                &stat_val.mod_string()
+            } else {
+                ""
+            };
 
-            StatTile::new(label, &mod_score, val)
+            let label = stat.full_name();
+
+            StatTile::new(label, mod_score, stat_val.deref_mut())
                 .label_size(10.0)
                 .frame(frame)
                 .ui(ui);
@@ -151,27 +167,11 @@ impl<'a> StatBar<'a> {
         builder
             .sizes(Size::remainder().at_least(100.0), 7)
             .horizontal(|mut strip| {
-                strip.cell(|ui| {
-                    stat(ui, "STRENGTH", &mut self.new_stats.str);
-                });
-                strip.cell(|ui| {
-                    stat(ui, "DEXTERITY", &mut self.new_stats.dex);
-                });
-                strip.cell(|ui| {
-                    stat(ui, "CONSTITUTION", &mut self.new_stats.con);
-                });
-                strip.cell(|ui| {
-                    stat(ui, "INTELLIGENCE", &mut self.new_stats.int);
-                });
-                strip.cell(|ui| {
-                    stat(ui, "WISDOM", &mut self.new_stats.wis);
-                });
-                strip.cell(|ui| {
-                    stat(ui, "CHARISMA", &mut self.new_stats.cha);
-                });
-                strip.cell(|ui| {
-                    stat(ui, "SPEED", &mut self.new_stats.str);
-                });
+                for stat_type in CharStat::ALL.into_iter().filter(|x| *x != CharStat::Ac) {
+                    strip.cell(|ui| {
+                        stat(ui, self.new_stats, stat_type);
+                    });
+                }
             });
     }
 }

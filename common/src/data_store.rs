@@ -1,6 +1,6 @@
 use std::{any, collections::HashMap};
 
-use log::error;
+use log::{debug, error};
 use thiserror::Error;
 
 use crate::{
@@ -133,6 +133,8 @@ pub struct DataStore {
 
 impl DataStore {
     pub fn handle_message(&mut self, msg: DataMessage) {
+        debug!("Handling message: {msg:?}");
+
         let res = match msg {
             DataMessage::UpdateItemCount(msg) => self.update_item_count(msg),
             DataMessage::UpdateAbilityCount(msg) => self.update_ability_count(msg),

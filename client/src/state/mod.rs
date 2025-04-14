@@ -12,6 +12,8 @@ pub struct DndState {
     pub data: DataStore,
     pub client_board: ClientBoard,
     pub chat: chat::ChatState,
+
+    #[deprecated]
     pub character: character::CharacterState,
     pub user: Option<User>,
 }

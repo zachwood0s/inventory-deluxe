@@ -107,11 +107,18 @@ pub mod commands {
         fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
             let user = state.owned_user();
 
-            let Some(character) = state.character.characters.get_mut(&user) else {
+            let Ok(character) = state.data.get_character_mut(&user) else {
                 return;
             };
 
-            let skills = character.info.skills.clone();
+            let mut skills = character.info().skills.clone();
+
+            if skills.contains(&self.skill_name) {
+                skills.retain(|x| x != &self.skill_name)
+            } else {
+                skills.push(self.skill_name);
+            }
+
             let message = UpdateSkills { user, skills };
 
             tx.send(DndMessage::DataMessage(message.into()).into());
