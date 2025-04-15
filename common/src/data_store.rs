@@ -50,10 +50,16 @@ pub struct UpdateSkills {
     pub skills: Vec<String>,
 }
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ItemHandle {
     pub item: ItemId,
     pub count: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ItemRef<'a> {
+    pub handle: ItemHandle,
+    pub item: &'a Item,
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -108,6 +114,14 @@ impl CharacterStorage {
     pub fn get_item_mut(&mut self, id: &ItemId) -> anyhow::Result<&mut ItemHandle> {
         self.items.get_mut(id).ok_or_else(|| {
             DataStoreError::CharacterDoesNotHaveItem(self.data.info.name.clone(), *id).into()
+        })
+    }
+
+    pub fn items<'a>(&'a self, data_store: &'a DataStore) -> impl Iterator<Item = ItemRef<'a>> {
+        self.items.values().flat_map(|&handle| {
+            data_store
+                .get_item(&handle.item)
+                .map(|item| ItemRef { handle, item })
         })
     }
 
@@ -211,5 +225,9 @@ impl DataStore {
 
     pub fn character_names(&self) -> impl Iterator<Item = &User> {
         self.characters.keys()
+    }
+
+    pub fn get_item(&self, id: &ItemId) -> Option<&Item> {
+        self.items.get(id)
     }
 }

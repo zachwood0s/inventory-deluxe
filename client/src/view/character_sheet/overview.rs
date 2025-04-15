@@ -1,24 +1,28 @@
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
 use common::data_store::CharacterStorage;
-use common::{CharStat, Character, CharacterStats};
-use egui::{
-    CentralPanel, Color32, Frame, Image, Margin, Response, RichText, SidePanel, Stroke,
-    TopBottomPanel, UiBuilder, Vec2, Widget, Window,
-};
+use common::{CharStat, CharacterStats};
+use egui::{CentralPanel, Frame, Image, Margin, RichText, SidePanel, Widget, Window};
 use egui_dock::{DockArea, DockState};
-use egui_extras::{Size, Strip, StripBuilder};
+use egui_extras::{Size, StripBuilder};
 
 use crate::listener::CommandQueue;
 use crate::state::character::commands::UpdateCharacterStats;
 use crate::state::DndState;
-use crate::widgets::{group::Group, stat_tile::StatTile, CustomUi};
+use crate::widgets::{group::Group, stat_tile::StatTile};
 
 use super::{
     AbilitiesTab, AttributesTab, BiographyTab, CharacterTab, CharacterTabs, InventoryTab,
     SkillsTable,
 };
+
+// NOTE: Just thought of a potentially cool idea. When dealing with shops/loot pools, cameron
+// usually has to manually send us an item list, and it being cameron he sends those through
+// discord or a freaking google doc link. What if he could just say /shop or something and it displays a little UI for him to
+// send the items and their discrptions to the players?
+// P.s. also include egui-notify for server notifications and other things
+// (i.e. autosave, disconnect/reconnect, cameron notifications, etc.)
 
 pub struct CharacterSheetWindow<'a, 'q> {
     pub sheet: CharacterSheet<'a, 'q>,
@@ -104,8 +108,6 @@ impl<'a, 'q> CharacterSheet<'a, 'q> {
                 });
                 strip.strip(|builder| StatBar::new(&mut new_stats).show_in_strip(builder));
                 strip.cell(|ui| {
-                    ui.separator();
-
                     SidePanel::left("character_left")
                         .min_width(300.0)
                         .resizable(false)

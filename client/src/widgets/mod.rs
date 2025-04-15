@@ -6,6 +6,14 @@ pub mod frames;
 pub mod group;
 pub mod stat_tile;
 
+pub trait No {
+    fn no(self);
+}
+
+impl No for Response {
+    fn no(self) {}
+}
+
 pub trait WithAlpha {
     fn with_alpha(self, alpha: f32) -> Self;
 }
