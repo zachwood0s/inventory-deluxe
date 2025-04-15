@@ -423,7 +423,7 @@ pub mod commands {
             let adv_value = get_capture_int("adv_value", 0, MAX_DIE_ROLL);
             let modifier = captures
                 .name("adv")
-                .and_then(|x| Modifier::parse(x.as_str(), adv_value.unwrap()));
+                .and_then(|x| Modifier::parse(x.as_str(), adv_value?));
 
             Some(Roll {
                 roll_str: parts[1].into(),

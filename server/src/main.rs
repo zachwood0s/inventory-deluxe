@@ -26,6 +26,7 @@ mod tasks;
 use db_types::*;
 use tasks::{board::BoardData, ServerTask};
 use thiserror::Error;
+use tokio::runtime::Handle;
 
 const AUTOSAVE_TIME_IN_SECS: u64 = 30;
 
@@ -225,7 +226,9 @@ impl DndServer {
     }
 
     fn process_task<T: tasks::ServerTask>(&self, endpoint: Endpoint, task: T) {
-        futures::executor::block_on(self.process_task_async(endpoint, task));
+        tokio::task::block_in_place(move || {
+            Handle::current().block_on(self.process_task_async(endpoint, task))
+        });
     }
 
     async fn process_task_async<T: tasks::ServerTask>(&self, endpoint: Endpoint, task: T) {
