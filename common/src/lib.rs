@@ -69,6 +69,27 @@ pub struct AbilityId {
 #[serde(transparent)]
 pub struct ItemId(i64);
 
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    Hash,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Display,
+)]
+pub enum ItemCategory {
+    Weapons,
+    Equipment,
+    Consumables,
+    Valuables,
+    Misc,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Item {
     pub id: ItemId,
@@ -79,6 +100,9 @@ pub struct Item {
     pub description: String,
     pub flavor_text: Option<String>,
     pub quest_item: bool,
+    pub equippable: bool,
+    pub requires_attunement: bool,
+    pub category: ItemCategory,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

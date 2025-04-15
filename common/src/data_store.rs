@@ -1,4 +1,4 @@
-use std::{any, collections::HashMap};
+use std::{any, collections::HashMap, hash};
 
 use log::{debug, error};
 use thiserror::Error;
@@ -50,7 +50,7 @@ pub struct UpdateSkills {
     pub skills: Vec<String>,
 }
 
-#[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize, Hash, PartialEq, Eq)]
 pub struct ItemHandle {
     pub item: ItemId,
     pub count: u32,
@@ -60,6 +60,12 @@ pub struct ItemHandle {
 pub struct ItemRef<'a> {
     pub handle: ItemHandle,
     pub item: &'a Item,
+}
+
+impl hash::Hash for ItemRef<'_> {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.handle.hash(state);
+    }
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
