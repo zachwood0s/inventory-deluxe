@@ -10,7 +10,7 @@ use egui_extras::{Size, StripBuilder};
 use crate::listener::CommandQueue;
 use crate::state::character::commands::UpdateCharacterStats;
 use crate::state::DndState;
-use crate::widgets::{group::Group, stat_tile::StatTile};
+use crate::widgets::{Group, StatTile};
 
 use super::{
     AbilitiesTab, AttributesTab, BiographyTab, CharacterTab, CharacterTabs, InventoryTab,

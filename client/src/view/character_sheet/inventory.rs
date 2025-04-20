@@ -5,17 +5,18 @@ use common::{
     ItemCategory, ItemId,
 };
 use egui::{
-    vec2, Button, Color32, ComboBox, Frame, Grid, Layout, RichText, Separator, Stroke, UiBuilder,
-    Widget,
+    vec2, Button, Color32, ComboBox, Frame, Grid, Layout, RichText, Separator, Stroke, TextEdit,
+    UiBuilder, Widget,
 };
 use egui_dnd::utils::shift_vec;
 use egui_extras::{Column, Size, Strip, StripBuilder, TableBuilder};
+use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
 use log::info;
 
 use crate::{
     state::character::commands::UpdateItemHandle,
-    widgets::{CustomUi, EnumSelect, No},
+    widgets::{CustomUi, EnumSelect, Group, No, ToggleIcon},
 };
 
 use super::{CharacterCtx, CharacterTabImpl};
@@ -124,6 +125,7 @@ impl Filters {
 struct State {
     sorted_items: Vec<ItemId>,
     filters: Filters,
+    search_text: String,
 }
 
 impl Default for State {
@@ -135,6 +137,7 @@ impl Default for State {
         Self {
             sorted_items: Default::default(),
             filters,
+            search_text: Default::default(),
         }
     }
 }
@@ -177,27 +180,35 @@ impl CharacterTabImpl for InventoryTab {
         let id = ui.make_persistent_id(salt);
         let mut state = State::load(ui, id, &ctx);
 
-        ui.menu_button("Filter", |ui| {
-            egui::Grid::new("dropdowns").num_columns(2).show(ui, |ui| {
-                ui.label("Equipped");
-                ui.add(EnumSelect::new(&mut state.filters.equipped, ""));
-                ui.end_row();
-                ui.label("Attuned");
-                ui.add(EnumSelect::new(&mut state.filters.attuned, ""));
+        let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+
+        Frame::default().outer_margin(4).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.text_edit_singleline(&mut state.search_text);
+
+                ui.menu_button(egui_phosphor::regular::SLIDERS_HORIZONTAL, |ui| {
+                    egui::Grid::new("dropdowns").num_columns(2).show(ui, |ui| {
+                        ui.label("Equipped");
+                        ui.add(EnumSelect::new(&mut state.filters.equipped, ""));
+                        ui.end_row();
+                        ui.label("Attuned");
+                        ui.add(EnumSelect::new(&mut state.filters.attuned, ""));
+                    });
+
+                    ui.separator();
+
+                    if ui
+                        .checkbox(&mut state.filters.show_all, "Show All")
+                        .clicked()
+                    {
+                        state.filters.handle_show_all();
+                    }
+
+                    for (name, state) in state.filters.iter() {
+                        ui.checkbox(state, name);
+                    }
+                });
             });
-
-            ui.separator();
-
-            if ui
-                .checkbox(&mut state.filters.show_all, "Show All")
-                .clicked()
-            {
-                state.filters.handle_show_all();
-            }
-
-            for (name, state) in state.filters.iter() {
-                ui.checkbox(state, name);
-            }
         });
 
         let mut filtered = state
@@ -211,6 +222,11 @@ impl CharacterTabImpl for InventoryTab {
             })
             .enumerate()
             .filter(|(_, x)| state.filters.matches(x))
+            .filter(|(_, x)| {
+                matcher
+                    .fuzzy_match(&x.item.name, &state.search_text)
+                    .is_some()
+            })
             .collect_vec();
 
         let item_size = vec2(ui.available_width(), 32.0);
@@ -252,6 +268,8 @@ impl CharacterTabImpl for InventoryTab {
                             )
                             .show(ui, |strip| {
                                 strip.cell(|ui| {
+                                    ui.add_space(10.0);
+
                                     ui.label(&item.item.name);
 
                                     if item.item.quest_item {
@@ -264,6 +282,8 @@ impl CharacterTabImpl for InventoryTab {
 
                                     if item.handle.attuned {
                                         ui.attribute("ATTUNED", Color32::ORANGE);
+                                    } else if item.item.requires_attunement {
+                                        ui.attribute("UNATTUNED", Color32::DARK_GRAY);
                                     }
                                 });
                                 strip.cell(|ui| {
@@ -386,59 +406,5 @@ impl ItemRow {
                 .cell_layout(layout)
                 .horizontal(|mut strip| add_contents(&mut strip));
         });
-    }
-}
-
-struct ToggleIcon<'a> {
-    toggle_value: &'a mut bool,
-    on_icon: &'a str,
-    off_icon: &'a str,
-    disable_icon: &'a str,
-    hover_tooltip: Option<&'static str>,
-}
-
-impl<'a> ToggleIcon<'a> {
-    pub fn new(
-        toggle_value: &'a mut bool,
-        on_icon: &'a str,
-        off_icon: &'a str,
-        disable_icon: &'a str,
-    ) -> Self {
-        Self {
-            toggle_value,
-            on_icon,
-            off_icon,
-            disable_icon,
-            hover_tooltip: None,
-        }
-    }
-
-    pub fn hover(mut self, hover_tooltip: &'static str) -> Self {
-        self.hover_tooltip = Some(hover_tooltip);
-        self
-    }
-}
-
-impl Widget for ToggleIcon<'_> {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let icon = if !ui.is_enabled() {
-            self.disable_icon
-        } else if *self.toggle_value {
-            self.on_icon
-        } else {
-            self.off_icon
-        };
-
-        let mut resp = ui.add(Button::new(icon));
-
-        if let Some(hover_tooltip) = self.hover_tooltip {
-            resp = resp.on_hover_text(hover_tooltip);
-        }
-
-        if resp.clicked() {
-            *self.toggle_value = !*self.toggle_value;
-        }
-
-        resp
     }
 }

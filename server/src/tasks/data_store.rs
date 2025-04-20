@@ -256,6 +256,7 @@ impl PullLatestDbData {
                         data.player,
                         AbilityHandle {
                             ability_name: data.ability_name,
+                            ability_source: None,
                             uses: data.uses,
                         },
                     )

@@ -31,6 +31,7 @@ regex = "1.11.1"
 once_cell = "1.21.3"
 rand = { workspace = true }
 typetag = { workspace = true }
+fuzzy-matcher = "*"
 egui-phosphor = { version = "0.9.0", features = [
   "bold",
   "regular",

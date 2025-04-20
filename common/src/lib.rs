@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use derive_more::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut, Display};
 
 pub mod board;
 pub mod data_store;
@@ -104,6 +104,44 @@ pub struct Item {
     pub requires_attunement: bool,
     pub category: ItemCategory,
     pub weight: Option<f32>,
+    pub advanced_attr: Option<AdvancedItemAttributes>,
+}
+
+impl Item {
+    pub fn granted_abilities(&self) -> Vec<&AbilityId> {
+        let Some(adv) = &self.advanced_attr else {
+            return vec![];
+        };
+
+        adv.grants
+            .iter()
+            .flat_map(|x| {
+                if let ItemGrant::Ability(ability) = x {
+                    Some(ability)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct AdvancedItemAttributes {
+    pub grants: Vec<ItemGrant>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub enum ItemGrant {
+    Ability(AbilityId),
+}
+
+#[derive(
+    Clone, Copy, Debug, Display, Hash, PartialEq, Eq, serde::Deserialize, serde::Serialize,
+)]
+pub enum AbilitySource {
+    #[display("Item")]
+    Item(ItemId),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

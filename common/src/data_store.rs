@@ -1,11 +1,11 @@
 use std::{any, collections::HashMap, hash};
 
-use log::{debug, error};
+use log::{debug, error, info};
 use thiserror::Error;
 
 use crate::{
-    message::DndMessage, Ability, AbilityId, Character, CharacterSemiStatic, CharacterStats, Item,
-    ItemId, User,
+    message::DndMessage, Ability, AbilityId, AbilitySource, Character, CharacterSemiStatic,
+    CharacterStats, Item, ItemId, User,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, derive_more::From)]
@@ -69,10 +69,24 @@ impl hash::Hash for ItemRef<'_> {
     }
 }
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, Hash, PartialEq, Eq)]
 pub struct AbilityHandle {
     pub ability_name: AbilityId,
     pub uses: i64,
+    #[serde(default)]
+    pub ability_source: Option<AbilitySource>,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct AbilityRef<'a> {
+    pub handle: &'a AbilityHandle,
+    pub ability: &'a Ability,
+}
+
+impl hash::Hash for AbilityRef<'_> {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.handle.hash(state);
+    }
 }
 
 #[derive(Error, Debug)]
@@ -90,6 +104,42 @@ pub struct CharacterStorage {
     data: Character,
     items: HashMap<ItemId, ItemHandle>,
     abilities: HashMap<AbilityId, AbilityHandle>,
+}
+
+impl CharacterStorage {
+    fn update_granted_items(&mut self, items: &HashMap<ItemId, Item>) {
+        // Keep only the abilities which are still granted
+        // (i.e. we still have the item which is granting it to us)
+        self.abilities
+            .retain(|_, handle| match handle.ability_source {
+                Some(AbilitySource::Item(item_id)) => self.items.contains_key(&item_id),
+                None => true,
+            });
+
+        // Add in any abilities that we're now granted but don't have already
+        for item_handle in self.items.values() {
+            let Some(item) = items.get(&item_handle.item) else {
+                continue;
+            };
+
+            for ability in item.granted_abilities() {
+                if self.abilities.contains_key(ability) {
+                    continue;
+                };
+
+                info!("Granted {ability}");
+
+                self.abilities.insert(
+                    ability.clone(),
+                    AbilityHandle {
+                        ability_name: ability.clone(),
+                        uses: 1,
+                        ability_source: Some(AbilitySource::Item(item_handle.item)),
+                    },
+                );
+            }
+        }
+    }
 }
 
 impl CharacterStorage {
@@ -118,6 +168,28 @@ impl CharacterStorage {
         })
     }
 
+    pub fn get_ability(&self, id: &AbilityId) -> anyhow::Result<&AbilityHandle> {
+        self.abilities.get(id).ok_or_else(|| {
+            DataStoreError::CharacterDoesNotHaveAbility(self.data.info.name.clone(), id.clone())
+                .into()
+        })
+    }
+
+    pub fn is_ability_active(&self, id: &AbilityId) -> bool {
+        let Some(ability) = self.abilities.get(id) else {
+            return false;
+        };
+
+        match ability.ability_source {
+            Some(AbilitySource::Item(item_id)) => self
+                .items
+                .get(&item_id)
+                .map(|item| item.equipped)
+                .unwrap_or_default(),
+            None => true,
+        }
+    }
+
     pub fn get_item(&self, id: &ItemId) -> anyhow::Result<&ItemHandle> {
         self.items.get(id).ok_or_else(|| {
             DataStoreError::CharacterDoesNotHaveItem(self.data.info.name.clone(), *id).into()
@@ -135,6 +207,17 @@ impl CharacterStorage {
             data_store
                 .get_item(&handle.item)
                 .map(|item| ItemRef { handle, item })
+        })
+    }
+
+    pub fn abilities<'a>(
+        &'a self,
+        data_store: &'a DataStore,
+    ) -> impl Iterator<Item = AbilityRef<'a>> {
+        self.abilities.values().flat_map(|handle| {
+            data_store
+                .get_ability(&handle.ability_name)
+                .map(|ability| AbilityRef { handle, ability })
         })
     }
 
@@ -203,11 +286,16 @@ impl DataStore {
 
     fn overwrite_all_data(&mut self, new_data: DataStore) -> anyhow::Result<()> {
         *self = new_data;
+
+        self.update_granted_items();
+
         Ok(())
     }
 
     pub fn overwrite_items(&mut self, new_items: Vec<Item>) {
         self.items = new_items.into_iter().map(|i| (i.id, i)).collect();
+
+        self.update_granted_items();
     }
 
     pub fn overwrite_abilities(&mut self, new_abilities: Vec<Ability>) {
@@ -222,6 +310,14 @@ impl DataStore {
             .into_iter()
             .map(|c| (c.data.info.name.clone(), c))
             .collect();
+
+        self.update_granted_items();
+    }
+
+    fn update_granted_items(&mut self) {
+        for character in self.characters.values_mut() {
+            character.update_granted_items(&self.items);
+        }
     }
 }
 
@@ -242,5 +338,9 @@ impl DataStore {
 
     pub fn get_item(&self, id: &ItemId) -> Option<&Item> {
         self.items.get(id)
+    }
+
+    pub fn get_ability(&self, id: &AbilityId) -> Option<&Ability> {
+        self.abilities.get(id)
     }
 }

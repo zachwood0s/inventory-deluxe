@@ -1,12 +1,7 @@
 use egui::{
-    vec2, DragValue, FontId, Frame, Label, Layout, Margin, RichText, Sense, TextStyle, UiBuilder,
-    UiKind, UiStackInfo, Vec2, Widget,
+    DragValue, Frame, Layout, RichText, Sense, TextStyle, UiBuilder, UiKind, UiStackInfo, Widget,
 };
-use egui_extras::{Size, StripBuilder};
 use emath::Numeric;
-use log::info;
-
-use crate::widgets::group::Group;
 
 use super::CustomUi;
 

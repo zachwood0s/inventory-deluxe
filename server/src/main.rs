@@ -16,7 +16,7 @@ use message_io::{
 
 use common::{
     message::{DndMessage, UnRegisterUser},
-    User,
+    AbilityId, ItemGrant, User,
 };
 
 mod db_types;

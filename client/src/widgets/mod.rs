@@ -1,12 +1,20 @@
 use std::any::type_name;
 
-use egui::{Color32, ComboBox, Label, Response, Rgba, RichText, Widget, WidgetText};
+use egui::{
+    vec2, Color32, ComboBox, Frame, Label, Layout, Response, Rgba, RichText, Stroke, Widget,
+    WidgetText,
+};
 use emath::Numeric;
-use stat_tile::StatTile;
 
-pub mod frames;
-pub mod group;
-pub mod stat_tile;
+mod frames;
+mod group;
+mod stat_tile;
+mod toggle_icon;
+
+pub use frames::*;
+pub use group::*;
+pub use stat_tile::*;
+pub use toggle_icon::*;
 
 pub trait No {
     fn no(self);
@@ -69,12 +77,21 @@ impl CustomUi for egui::Ui {
     }
 
     fn attribute(&mut self, text: impl std::fmt::Display, color: impl Into<Color32>) -> Response {
-        self.no_select_label(
-            RichText::new(format!("({})", text))
-                .color(color)
-                .strong()
-                .size(8.0),
-        )
+        let color = color.into();
+        Frame::new()
+            .stroke(Stroke::new(1.0, color))
+            .inner_margin(vec2(5.0, -5.0))
+            .outer_margin(0)
+            .corner_radius(10)
+            .show(self, |ui| {
+                ui.no_select_label(
+                    RichText::new(format!("{}", text))
+                        .color(color)
+                        .strong()
+                        .size(8.0),
+                )
+            })
+            .response
     }
 }
 

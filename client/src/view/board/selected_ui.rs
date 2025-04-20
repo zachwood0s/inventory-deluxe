@@ -1,8 +1,7 @@
-use common::board::{BoardPiece, BoardPieceSet, LayerInfo};
+use common::board::{BoardPiece, LayerInfo};
 use egui::{Button, Id, Vec2, Widget};
-use log::info;
 
-use crate::{state::DndState, widgets::group::Group};
+use crate::widgets::Group;
 
 use super::board_render::RenderContext;
 
