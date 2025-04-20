@@ -103,6 +103,7 @@ pub struct Item {
     pub equippable: bool,
     pub requires_attunement: bool,
     pub category: ItemCategory,
+    pub weight: Option<f32>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

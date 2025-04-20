@@ -198,6 +198,8 @@ impl PullLatestDbData {
                 player: User,
                 item_id: ItemId,
                 count: u32,
+                equipped: bool,
+                attuned: bool,
             }
 
             let inventories: Vec<Item> = serde_json::from_str(&raw_inventory)
@@ -211,6 +213,8 @@ impl PullLatestDbData {
                         ItemHandle {
                             item: data.item_id,
                             count: data.count,
+                            equipped: data.equipped,
+                            attuned: data.attuned,
                         },
                     )
                 })

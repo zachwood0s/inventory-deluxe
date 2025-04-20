@@ -35,7 +35,7 @@ use tasks::{
 use thiserror::Error;
 use tokio::runtime::Handle;
 
-const AUTOSAVE_TIME_IN_SECS: u64 = 30;
+const AUTOSAVE_TIME_IN_SECS: u64 = 300;
 
 pub trait ToError<T> {
     fn to_error(self) -> anyhow::Result<T>;

@@ -33,7 +33,7 @@ impl CharacterState {
 
 pub mod commands {
     use common::{
-        data_store::{self, DataMessage, UpdateSkills},
+        data_store::{self, DataMessage, ItemHandle, UpdateSkills},
         CharacterStats,
     };
 
@@ -145,6 +145,28 @@ pub mod commands {
 
             let data: data_store::DataMessage =
                 data_store::UpdateCharacterStats { user, new_stats }.into();
+
+            tx.send(DndMessage::DataMessage(data).into())
+        }
+    }
+
+    pub struct UpdateItemHandle {
+        user: User,
+        handle: ItemHandle,
+    }
+
+    impl UpdateItemHandle {
+        pub fn new(user: User, handle: ItemHandle) -> Self {
+            Self { user, handle }
+        }
+    }
+
+    impl Command for UpdateItemHandle {
+        fn execute(self: Box<Self>, _: &mut DndState, tx: &EventSender<Signal>) {
+            let Self { user, handle } = *self;
+
+            let data: data_store::DataMessage =
+                data_store::UpdateItemHandle { user, handle }.into();
 
             tx.send(DndMessage::DataMessage(data).into())
         }

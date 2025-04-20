@@ -10,7 +10,7 @@ use crate::{
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, derive_more::From)]
 pub enum DataMessage {
-    UpdateItemCount(UpdateItemCount),
+    UpdateItemHandle(UpdateItemHandle),
     UpdateAbilityCount(UpdateAbilityCount),
     UpdateCharacterStats(UpdateCharacterStats),
     UpdateSkills(UpdateSkills),
@@ -25,10 +25,9 @@ impl From<DataMessage> for DndMessage {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
-pub struct UpdateItemCount {
+pub struct UpdateItemHandle {
     pub user: User,
-    pub item_id: ItemId,
-    pub new_count: u32,
+    pub handle: ItemHandle,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
@@ -54,6 +53,8 @@ pub struct UpdateSkills {
 pub struct ItemHandle {
     pub item: ItemId,
     pub count: u32,
+    pub equipped: bool,
+    pub attuned: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -117,6 +118,12 @@ impl CharacterStorage {
         })
     }
 
+    pub fn get_item(&self, id: &ItemId) -> anyhow::Result<&ItemHandle> {
+        self.items.get(id).ok_or_else(|| {
+            DataStoreError::CharacterDoesNotHaveItem(self.data.info.name.clone(), *id).into()
+        })
+    }
+
     pub fn get_item_mut(&mut self, id: &ItemId) -> anyhow::Result<&mut ItemHandle> {
         self.items.get_mut(id).ok_or_else(|| {
             DataStoreError::CharacterDoesNotHaveItem(self.data.info.name.clone(), *id).into()
@@ -156,7 +163,7 @@ impl DataStore {
         debug!("Handling message: {msg:?}");
 
         let res = match msg {
-            DataMessage::UpdateItemCount(msg) => self.update_item_count(msg),
+            DataMessage::UpdateItemHandle(msg) => self.update_item_handle(msg),
             DataMessage::UpdateAbilityCount(msg) => self.update_ability_count(msg),
             DataMessage::UpdateCharacterStats(msg) => self.update_character_stats(msg),
             DataMessage::UpdateSkills(msg) => self.update_skills(msg),
@@ -168,10 +175,10 @@ impl DataStore {
         }
     }
 
-    fn update_item_count(&mut self, msg: UpdateItemCount) -> anyhow::Result<()> {
+    fn update_item_handle(&mut self, msg: UpdateItemHandle) -> anyhow::Result<()> {
         let character = self.get_character_mut(&msg.user)?;
-        let item_handle = character.get_item_mut(&msg.item_id)?;
-        item_handle.count = msg.new_count;
+        let item_handle = character.get_item_mut(&msg.handle.item)?;
+        *item_handle = msg.handle;
         Ok(())
     }
 
