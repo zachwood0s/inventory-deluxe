@@ -1,5 +1,5 @@
 use board::ClientBoard;
-use common::{data_store::DataStore, message::DndMessage, User};
+use common::{data_store::DataStore, message::DndMessage, AbilityId, User};
 
 pub mod abilities;
 pub mod backpack;
@@ -16,6 +16,8 @@ pub struct DndState {
     #[deprecated]
     pub character: character::CharacterState,
     pub user: Option<User>,
+
+    pub ability_edit: Option<AbilityId>,
 }
 
 impl DndState {
@@ -31,5 +33,22 @@ impl DndState {
 
     pub fn owned_user(&self) -> User {
         self.user.clone().unwrap()
+    }
+}
+
+pub mod commands {
+    use common::AbilityId;
+    use message_io::events::EventSender;
+
+    use crate::prelude::{Command, Signal};
+
+    use super::DndState;
+
+    pub struct EditAbility(pub AbilityId);
+
+    impl Command for EditAbility {
+        fn execute(self: Box<Self>, state: &mut DndState, _: &EventSender<Signal>) {
+            state.ability_edit = Some(self.0);
+        }
     }
 }

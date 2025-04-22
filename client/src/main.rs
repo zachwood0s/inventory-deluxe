@@ -6,14 +6,14 @@ use std::{
     thread,
 };
 
-use common::{message::DndMessage, User};
+use common::{message::DndMessage, AbilityId, User};
 use eframe::egui;
 use egui::{CentralPanel, Window};
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex};
 use listener::{CommandQueue, DndListener, Signal};
 use message_io::events::EventSender;
 use state::DndState;
-use view::DndTab;
+use view::{edit::AbilityEdit, DndTab};
 
 use clap::Parser;
 
@@ -162,6 +162,34 @@ impl eframe::App for MyApp {
                     .show_leaf_close_all_buttons(false)
                     .show_leaf_collapse_buttons(false)
                     .show(ctx, &mut tab_viewer);
+            }
+
+            {
+                let mut ability_edit = self.state.ability_edit.is_some();
+                let id = egui::Id::new("edit_ability");
+                let layer_id = egui::LayerId::new(egui::Order::Middle, id);
+
+                let resp = Window::new("Edit Ability")
+                    .id(id)
+                    .open(&mut ability_edit)
+                    .show(ctx, |ui| {
+                        let Some(ability_id) = self.state.ability_edit.as_ref() else {
+                            ui.label("Select an ability to edit");
+                            return;
+                        };
+
+                        AbilityEdit::new(ability_id, &self.state).show(ui);
+                    });
+
+                // Handle window closed
+                if !ability_edit {
+                    self.state.ability_edit = None;
+                }
+
+                // While window is show, move it to the top
+                if resp.is_some() {
+                    ctx.move_to_top(layer_id);
+                }
             }
 
             for msg in self.rx.as_ref().unwrap().try_iter() {

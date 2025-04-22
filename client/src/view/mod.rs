@@ -4,6 +4,7 @@ pub mod board;
 mod character;
 pub mod character_sheet;
 mod chat;
+pub mod edit;
 mod items;
 pub mod multi_select;
 mod settings;

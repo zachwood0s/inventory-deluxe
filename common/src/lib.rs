@@ -97,7 +97,7 @@ pub struct Item {
     #[serde(skip)]
     pub count: u32,
     pub name: String,
-    pub description: String,
+    pub description: Option<String>,
     pub flavor_text: Option<String>,
     pub quest_item: bool,
     pub equippable: bool,
@@ -275,6 +275,8 @@ pub struct CharacterStats {
     pub cha: StatValue,
     pub dex: StatValue,
     pub con: StatValue,
+    pub ac: StatValue,
+    pub spd: StatValue,
     pub power_slots: i16,
     pub max_hp: i16,
     pub curr_hp: i16,
@@ -289,9 +291,8 @@ impl CharacterStats {
             CharStat::Int => self.int,
             CharStat::Dex => self.dex,
             CharStat::Con => self.con,
-            // TODO: Map to real stats
-            CharStat::Spd => self.con,
-            CharStat::Ac => self.con,
+            CharStat::Spd => self.spd,
+            CharStat::Ac => self.ac,
         }
     }
 
@@ -303,45 +304,9 @@ impl CharacterStats {
             CharStat::Int => &mut self.int,
             CharStat::Dex => &mut self.dex,
             CharStat::Con => &mut self.con,
-            // TODO: Map to real stats
-            CharStat::Spd => &mut self.dex,
-            CharStat::Ac => &mut self.con,
+            CharStat::Spd => &mut self.spd,
+            CharStat::Ac => &mut self.ac,
         }
-    }
-
-    pub fn with_int(mut self, int: impl Into<StatValue>) -> Self {
-        self.int = int.into();
-        self
-    }
-
-    pub fn with_wis(mut self, wis: impl Into<StatValue>) -> Self {
-        self.wis = wis.into();
-        self
-    }
-
-    pub fn with_str(mut self, str: impl Into<StatValue>) -> Self {
-        self.str = str.into();
-        self
-    }
-
-    pub fn with_cha(mut self, cha: impl Into<StatValue>) -> Self {
-        self.cha = cha.into();
-        self
-    }
-
-    pub fn with_dex(mut self, dex: impl Into<StatValue>) -> Self {
-        self.dex = dex.into();
-        self
-    }
-
-    pub fn with_con(mut self, con: impl Into<StatValue>) -> Self {
-        self.con = con.into();
-        self
-    }
-
-    pub fn with_powerslots(mut self, power_slots: i16) -> Self {
-        self.power_slots = power_slots;
-        self
     }
 
     pub fn with_max_hp(mut self, max_hp: i16) -> Self {

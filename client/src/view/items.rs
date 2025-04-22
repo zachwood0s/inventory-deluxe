@@ -90,7 +90,7 @@ impl Widget for ItemWidget<'_, '_, '_> {
                 })
             })
             .body(|ui| {
-                egui_demo_lib::easy_mark::easy_mark(ui, &self.item.description);
+                //egui_demo_lib::easy_mark::easy_mark(ui, &self.item.description);
 
                 if let Some(flavor_text) = &self.item.flavor_text {
                     egui_demo_lib::easy_mark::easy_mark(ui, &format!("/\"{}\"/", flavor_text));

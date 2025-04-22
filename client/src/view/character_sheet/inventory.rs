@@ -10,9 +10,11 @@ use egui::{
 };
 use egui_dnd::utils::shift_vec;
 use egui_extras::{Column, Size, Strip, StripBuilder, TableBuilder};
+use egui_phosphor::bold::DOT_OUTLINE;
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
 use log::info;
+use rand::seq::IndexedRandom;
 
 use crate::{
     state::character::commands::UpdateItemHandle,
@@ -256,10 +258,12 @@ impl CharacterTabImpl for InventoryTab {
 
         let response =
             egui_dnd::dnd(ui, id).show(filtered.iter_mut(), |ui, (_, item), handle, _dragging| {
+                use egui_phosphor::regular::*;
+
                 let mut new_handle = item.handle;
 
                 ui.horizontal(|ui| {
-                    handle.ui_sized(ui, item_size, |ui| {
+                    let resp = handle.ui_sized(ui, item_size, |ui| {
                         ItemRow::new()
                             .frame(
                                 Frame::new()
@@ -301,8 +305,6 @@ impl CharacterTabImpl for InventoryTab {
                                     });
                                 });
                                 strip.cell(|ui| {
-                                    use egui_phosphor::regular::*;
-
                                     ui.add(Separator::default().vertical());
 
                                     ui.add_enabled(
@@ -342,7 +344,23 @@ impl CharacterTabImpl for InventoryTab {
                                     }
                                 });
                             });
-                    })
+                    });
+
+                    resp.on_hover_ui(|ui| {
+                        if let Some(desc) = &item.item.description {
+                            egui_demo_lib::easy_mark::easy_mark(ui, desc);
+                        }
+
+                        let granted = item.item.granted_abilities();
+
+                        if !granted.is_empty() {
+                            ui.label("Grants:");
+
+                            for grant in granted {
+                                ui.label(format!("{} {}", DOT_OUTLINE, grant));
+                            }
+                        }
+                    });
                 });
 
                 if new_handle != item.handle {

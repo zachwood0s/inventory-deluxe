@@ -15,6 +15,7 @@ pub enum DataMessage {
     UpdateCharacterStats(UpdateCharacterStats),
     UpdateSkills(UpdateSkills),
     OverwriteAllData(DataStore),
+    OverwriteAbility(Ability),
 }
 
 // TODO: Get rid of this once we use derive_more::Into on the DndMessage enum
@@ -251,6 +252,7 @@ impl DataStore {
             DataMessage::UpdateCharacterStats(msg) => self.update_character_stats(msg),
             DataMessage::UpdateSkills(msg) => self.update_skills(msg),
             DataMessage::OverwriteAllData(msg) => self.overwrite_all_data(msg),
+            DataMessage::OverwriteAbility(msg) => self.overwrite_ability(msg),
         };
 
         if let Err(err) = res {
@@ -290,6 +292,10 @@ impl DataStore {
         self.update_granted_items();
 
         Ok(())
+    }
+
+    fn overwrite_ability(&mut self, msg: Ability) -> anyhow::Result<()> {
+        todo!();
     }
 
     pub fn overwrite_items(&mut self, new_items: Vec<Item>) {
@@ -342,5 +348,9 @@ impl DataStore {
 
     pub fn get_ability(&self, id: &AbilityId) -> Option<&Ability> {
         self.abilities.get(id)
+    }
+
+    pub fn get_ability_mut(&mut self, id: &AbilityId) -> Option<&mut Ability> {
+        todo!();
     }
 }

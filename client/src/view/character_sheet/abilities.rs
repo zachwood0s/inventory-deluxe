@@ -1,14 +1,17 @@
 use std::collections::HashSet;
 
 use common::{data_store::AbilityRef, AbilityId, AbilitySource};
-use egui::{vec2, Frame, Layout, Separator};
+use egui::{vec2, Color32, Frame, Layout, Separator};
 use egui_dnd::utils::shift_vec;
 use egui_extras::{Size, Strip, StripBuilder};
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
 use log::info;
 
-use crate::widgets::{CustomUi, No, ToggleIcon};
+use crate::{
+    state::commands::EditAbility,
+    widgets::{CustomUi, No, ToggleIcon},
+};
 
 use super::{CharacterCtx, CharacterTabImpl};
 
@@ -189,7 +192,7 @@ impl CharacterTabImpl for AbilitiesTab {
                     .is_ability_active(&ability.handle.ability_name);
 
                 ui.horizontal(|ui| {
-                    handle.ui_sized(ui, item_size, |ui| {
+                    let resp = handle.ui_sized(ui, item_size, |ui| {
                         AbilityRow::new(enabled)
                             .frame(
                                 Frame::new()
@@ -202,21 +205,15 @@ impl CharacterTabImpl for AbilitiesTab {
 
                                     ui.label(&*ability.ability.name);
 
-                                    /*
-                                    if ability.item.quest_item {
-                                        ui.attribute("QUEST ITEM", Color32::YELLOW);
+                                    match ability.handle.ability_source {
+                                        Some(AbilitySource::Item(_)) if enabled => {
+                                            ui.attribute("ITEM", Color32::DARK_GRAY);
+                                        }
+                                        Some(AbilitySource::Item(_)) => {
+                                            ui.attribute("ITEM: not equipped", Color32::DARK_GRAY);
+                                        }
+                                        None => {}
                                     }
-
-                                    if ability.handle.equipped {
-                                        ui.attribute("EQUIPPED", Color32::GREEN);
-                                    }
-
-                                    if ability.handle.attuned {
-                                        ui.attribute("ATTUNED", Color32::ORANGE);
-                                    } else if ability.item.requires_attunement {
-                                        ui.attribute("UNATTUNED", Color32::DARK_GRAY);
-                                    }
-                                    */
                                 });
                                 strip.cell(|ui| {
                                     ui.add(Separator::default().vertical());
@@ -235,30 +232,6 @@ impl CharacterTabImpl for AbilitiesTab {
 
                                     ui.add(Separator::default().vertical());
 
-                                    /*
-                                    ui.add_enabled(
-                                        ability.item.equippable,
-                                        ToggleIcon::new(
-                                            &mut new_handle.equipped,
-                                            SHIELD_CHECK,
-                                            SHIELD,
-                                            SHIELD_SLASH,
-                                        )
-                                        .hover("Equip?"),
-                                    );
-
-                                    ui.add_enabled(
-                                        ability.item.requires_attunement,
-                                        ToggleIcon::new(
-                                            &mut new_handle.attuned,
-                                            EYE,
-                                            EYE_CLOSED,
-                                            EYE_SLASH,
-                                        )
-                                        .hover("Attune?"),
-                                    );
-                                    */
-
                                     if ui.button(TRASH).on_hover_text("Delete").clicked() {
                                         info!("Delte!");
                                     }
@@ -266,7 +239,7 @@ impl CharacterTabImpl for AbilitiesTab {
                                     ui.add(Separator::default().vertical());
 
                                     if ui.button(PENCIL_LINE).on_hover_text("Edit").clicked() {
-                                        info!("Show edit!");
+                                        ctx.commands.add(EditAbility(ability.ability.name.clone()));
                                     }
 
                                     if ui.button(INFO).on_hover_text("Info").clicked() {
@@ -274,7 +247,11 @@ impl CharacterTabImpl for AbilitiesTab {
                                     }
                                 });
                             });
-                    })
+                    });
+
+                    resp.on_hover_ui(|ui| {
+                        egui_demo_lib::easy_mark::easy_mark(ui, &ability.ability.description);
+                    });
                 });
             },
         );
@@ -333,7 +310,7 @@ impl AbilityRow {
                 StripBuilder::new(ui)
                     .size(Size::remainder().at_least(200.0))
                     .sizes(Size::exact(100.0), 2)
-                    .size(Size::exact(170.0))
+                    .size(Size::exact(110.0))
                     .cell_layout(layout)
                     .horizontal(|mut strip| add_contents(&mut strip));
             });
