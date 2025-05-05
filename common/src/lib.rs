@@ -22,6 +22,7 @@ pub mod message;
     Eq,
 )]
 #[serde(from = "String")]
+#[serde(into = "String")]
 pub struct User {
     pub name: String,
 }
@@ -50,6 +51,7 @@ impl User {
     Eq,
 )]
 #[serde(from = "String")]
+#[serde(into = "String")]
 pub struct AbilityId {
     pub name: String,
 }
@@ -150,6 +152,8 @@ pub struct Ability {
     pub description: String,
     pub notes: Option<String>,
     pub ability_type: String,
+    pub to_hit: String,
+    pub damage: String,
     pub flavor_text: Option<String>,
     pub resource: String,
     pub max_count: i64,

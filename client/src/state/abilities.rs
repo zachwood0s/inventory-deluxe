@@ -1,4 +1,6 @@
 pub mod commands {
+    use common::{data_store::DataMessage, Ability};
+
     use crate::prelude::*;
 
     pub struct SetAbilityCount {
@@ -94,6 +96,23 @@ pub mod commands {
                 .into(),
             );
             */
+        }
+    }
+
+    pub struct UpdateAbility {
+        pub ability: Ability,
+    }
+
+    impl UpdateAbility {
+        pub fn new(ability: Ability) -> Self {
+            Self { ability }
+        }
+    }
+
+    impl Command for UpdateAbility {
+        fn execute(self: Box<Self>, _: &mut DndState, tx: &EventSender<Signal>) {
+            let msg: DndMessage = DataMessage::OverwriteAbility(self.ability).into();
+            tx.send(msg.into());
         }
     }
 }

@@ -52,6 +52,8 @@ pub struct UpdateSkills {
 
 #[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize, Hash, PartialEq, Eq)]
 pub struct ItemHandle {
+    /// Key for the primary_key in the `inventory` table
+    pub db_id: i64,
     pub item: ItemId,
     pub count: u32,
     pub equipped: bool,
@@ -72,6 +74,10 @@ impl hash::Hash for ItemRef<'_> {
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize, Hash, PartialEq, Eq)]
 pub struct AbilityHandle {
+    /// Key for the primary_key in the `inventory` table
+    /// If `None` then this is most likely a "granted" ability and is not directly "learned" by
+    /// playaer
+    pub db_id: Option<i64>,
     pub ability_name: AbilityId,
     pub uses: i64,
     #[serde(default)]
@@ -98,6 +104,8 @@ pub enum DataStoreError {
     CharacterDoesNotHaveAbility(User, AbilityId),
     #[error("Character {0} does not have item {1}")]
     CharacterDoesNotHaveItem(User, ItemId),
+    #[error("Ability with name {0} not found")]
+    AbilityNotFound(AbilityId),
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -133,6 +141,7 @@ impl CharacterStorage {
                 self.abilities.insert(
                     ability.clone(),
                     AbilityHandle {
+                        db_id: None,
                         ability_name: ability.clone(),
                         uses: 1,
                         ability_source: Some(AbilitySource::Item(item_handle.item)),
@@ -295,7 +304,9 @@ impl DataStore {
     }
 
     fn overwrite_ability(&mut self, msg: Ability) -> anyhow::Result<()> {
-        todo!();
+        let ability = self.get_ability_mut(&msg.name)?;
+        *ability = msg;
+        Ok(())
     }
 
     pub fn overwrite_items(&mut self, new_items: Vec<Item>) {
@@ -350,7 +361,17 @@ impl DataStore {
         self.abilities.get(id)
     }
 
-    pub fn get_ability_mut(&mut self, id: &AbilityId) -> Option<&mut Ability> {
-        todo!();
+    pub fn get_ability_mut(&mut self, id: &AbilityId) -> anyhow::Result<&mut Ability> {
+        self.abilities
+            .get_mut(id)
+            .ok_or_else(|| DataStoreError::AbilityNotFound(id.clone()).into())
+    }
+
+    pub fn abilities(&self) -> impl Iterator<Item = &Ability> {
+        self.abilities.values()
+    }
+
+    pub fn items(&self) -> impl Iterator<Item = &Item> {
+        self.items.values()
     }
 }

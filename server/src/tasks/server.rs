@@ -5,7 +5,10 @@ use common::{
 use log::info;
 
 use crate::{
-    tasks::{board::*, data_store::SendLatestDbData},
+    tasks::{
+        board::*,
+        data_store::{SendLatestDbData, WriteBackDbData},
+    },
     ClientInfo, DndEndpoint, DndServer, ListenerCtx, ServerError,
 };
 
@@ -77,6 +80,10 @@ impl ServerTask for UnRegisterUser {
             .users
             .remove_user(&name)
             .ok_or_else(|| ServerError::UserNotFound(name.clone()))?;
+
+        WriteBackDbData(Some(&info.user_data))
+            .process(endpoint, server, ctx)
+            .await?;
 
         UserRemoved(info.user_data.name)
             .process(endpoint, server, ctx)

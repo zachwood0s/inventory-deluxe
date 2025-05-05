@@ -5,11 +5,12 @@ use common::{
     data_store::{AbilityHandle, CharacterStorage, DataMessage, DataStore, ItemHandle},
     Ability, AbilityId, Character, CharacterSemiStatic, CharacterStats, Item, ItemId, User,
 };
+use futures::future::try_join;
 use itertools::Itertools;
-use log::info;
+use log::{error, info, warn};
 use tokio::{sync::RwLock, try_join};
 
-use crate::{DndEndpoint, DndServer, ListenerCtx, ResponseTextWithError, ServerError};
+use crate::{DndEndpoint, DndServer, ListenerCtx, Postgrest, ResponseTextWithError, ServerError};
 
 use super::{Broadcast, Response, ReturnToSender, ServerTask};
 
@@ -192,7 +193,6 @@ impl PullLatestDbData {
                 .await?;
 
             #[derive(serde::Deserialize)]
-            #[allow(unused)]
             struct Item {
                 id: i64,
                 player: User,
@@ -211,6 +211,7 @@ impl PullLatestDbData {
                     (
                         data.player,
                         ItemHandle {
+                            db_id: data.id,
                             item: data.item_id,
                             count: data.count,
                             equipped: data.equipped,
@@ -238,7 +239,6 @@ impl PullLatestDbData {
                 .await?;
 
             #[derive(serde::Deserialize)]
-            #[allow(unused)]
             struct Ability {
                 id: i64,
                 player: User,
@@ -255,6 +255,7 @@ impl PullLatestDbData {
                     (
                         data.player,
                         AbilityHandle {
+                            db_id: Some(data.id),
                             ability_name: data.ability_name,
                             ability_source: None,
                             uses: data.uses,
@@ -291,14 +292,186 @@ impl PullLatestDbData {
 /// Writes the DB data
 ///
 /// If the specified user is None, the whole DB is written back
-pub struct WriteBackDbData(pub Option<User>);
-impl ServerTask for WriteBackDbData {
+pub struct WriteBackDbData<'a>(pub Option<&'a User>);
+impl ServerTask for WriteBackDbData<'_> {
     async fn process(
         self,
-        endpoint: DndEndpoint,
+        _: DndEndpoint,
         server: &DndServer,
-        ctx: &ListenerCtx,
+        _: &ListenerCtx,
     ) -> anyhow::Result<()> {
-        todo!()
+        let whole_db = self.0.is_none();
+        let data_store = server.data_store.data.read().await;
+
+        let users_to_write = match self.0 {
+            Some(user) => vec![user],
+            None => data_store.character_names().collect(),
+        };
+
+        WriteBackDbData::write_users(&data_store, &server.db, users_to_write).await?;
+
+        // If writing whole DB, then also update items and abilities
+        if whole_db {
+            let abilities = WriteBackDbData::write_abilities(&data_store, &server.db);
+            let items = WriteBackDbData::write_items(&data_store, &server.db);
+
+            try_join!(abilities, items)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl WriteBackDbData<'_> {
+    async fn write_users(
+        data_store: &DataStore,
+        db: &Postgrest,
+        users: Vec<&User>,
+    ) -> anyhow::Result<()> {
+        async fn write_stats(
+            _: &DataStore,
+            db: &Postgrest,
+            character: &CharacterStorage,
+        ) -> anyhow::Result<()> {
+            #[derive(serde::Serialize)]
+            struct DbCharacter<'a> {
+                #[serde(flatten)]
+                info: &'a CharacterSemiStatic,
+                #[serde(flatten)]
+                stats: &'a CharacterStats,
+            }
+
+            let db_character = DbCharacter {
+                info: character.info(),
+                stats: character.stats(),
+            };
+
+            let serialized = serde_json::to_string(&db_character)?;
+
+            db.from("character")
+                .eq("name", &character.info().name.name)
+                .update(serialized)
+                .execute()
+                .await?;
+
+            info!("Saved {}'s stats", character.info().name);
+
+            Ok(())
+        }
+
+        async fn write_inventory(
+            data_store: &DataStore,
+            db: &Postgrest,
+            character: &CharacterStorage,
+        ) -> anyhow::Result<()> {
+            #[derive(serde::Serialize)]
+            struct Item<'a> {
+                id: i64,
+                player: &'a User,
+                item_id: ItemId,
+                count: u32,
+                equipped: bool,
+                attuned: bool,
+            }
+
+            let db_items = character
+                .items(data_store)
+                .map(|item| Item {
+                    id: item.handle.db_id,
+                    player: character.name(),
+                    item_id: item.handle.item,
+                    count: item.handle.count,
+                    equipped: item.handle.equipped,
+                    attuned: item.handle.attuned,
+                })
+                .collect_vec();
+
+            let serialized = serde_json::to_string(&db_items)?;
+
+            db.from("inventory").upsert(serialized).execute().await?;
+
+            info!("Saved {}'s inventory", character.info().name);
+
+            Ok(())
+        }
+
+        async fn write_abilities(
+            data_store: &DataStore,
+            db: &Postgrest,
+            character: &CharacterStorage,
+        ) -> anyhow::Result<()> {
+            #[derive(serde::Serialize)]
+            struct Ability<'a> {
+                id: i64,
+                player: &'a User,
+                ability_name: &'a AbilityId,
+                uses: i64,
+            }
+
+            let db_items = character
+                .abilities(data_store)
+                .filter(|ability| ability.handle.db_id.is_some())
+                .map(|ability| Ability {
+                    // SAFE: we already filtered by only the "db" abilities
+                    id: ability.handle.db_id.unwrap(),
+                    player: character.name(),
+                    ability_name: &ability.handle.ability_name,
+                    uses: ability.handle.uses,
+                })
+                .collect_vec();
+
+            let serialized = serde_json::to_string(&db_items)?;
+
+            db.from("player_abilities")
+                .upsert(serialized)
+                .execute()
+                .await?;
+
+            info!("Saved {}'s abilities", character.info().name);
+
+            Ok(())
+        }
+
+        // Write back one user at a time for now
+        for user in users {
+            let Some(character) = data_store.get_character(user) else {
+                warn!("Tried to save non-existant character: {user}");
+                continue;
+            };
+
+            let stats = write_stats(data_store, db, character);
+            let inventory = write_inventory(data_store, db, character);
+            let abilities = write_abilities(data_store, db, character);
+
+            if let Err(e) = try_join!(stats, inventory, abilities) {
+                error!("Failed to save user data: {e}");
+            }
+
+            info!("Saved {}", user);
+        }
+
+        Ok(())
+    }
+
+    async fn write_abilities(data_store: &DataStore, db: &Postgrest) -> anyhow::Result<()> {
+        let abilities = data_store.abilities().collect_vec();
+        let serialized = serde_json::to_string(&abilities)?;
+
+        db.from("abilities").upsert(serialized).execute().await?;
+
+        info!("Saved all abilities");
+
+        Ok(())
+    }
+
+    async fn write_items(data_store: &DataStore, db: &Postgrest) -> anyhow::Result<()> {
+        let items = data_store.items().collect_vec();
+        let serialized = serde_json::to_string(&items)?;
+
+        db.from("items").upsert(serialized).execute().await?;
+
+        info!("Saved all items");
+
+        Ok(())
     }
 }

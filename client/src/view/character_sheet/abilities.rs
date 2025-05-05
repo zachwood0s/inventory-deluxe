@@ -171,7 +171,7 @@ impl CharacterTabImpl for AbilitiesTab {
                 )
                 .layout(Layout::left_to_right(egui::Align::Center))
                 .show(ui, |strip| {
-                    let headers = ["Name", "Type", "Resource", "Actions"];
+                    let headers = ["Name", "Type", "Resource", "To-Hit", "Damage", "Actions"];
 
                     for (idx, h) in headers.into_iter().enumerate() {
                         strip.cell(|ui| {
@@ -225,6 +225,18 @@ impl CharacterTabImpl for AbilitiesTab {
                                     ui.add(Separator::default().vertical());
                                     ui.centered_and_justified(|ui| {
                                         ui.label(&ability.ability.resource);
+                                    });
+                                });
+                                strip.cell(|ui| {
+                                    ui.add(Separator::default().vertical());
+                                    ui.centered_and_justified(|ui| {
+                                        ui.label(&ability.ability.to_hit);
+                                    });
+                                });
+                                strip.cell(|ui| {
+                                    ui.add(Separator::default().vertical());
+                                    ui.centered_and_justified(|ui| {
+                                        ui.label(&ability.ability.damage);
                                     });
                                 });
                                 strip.cell(|ui| {
@@ -309,7 +321,8 @@ impl AbilityRow {
                 let layout = self.layout.unwrap_or_else(|| *ui.layout());
                 StripBuilder::new(ui)
                     .size(Size::remainder().at_least(200.0))
-                    .sizes(Size::exact(100.0), 2)
+                    .sizes(Size::exact(100.0), 3)
+                    .size(Size::remainder().at_most(200.0).at_least(100.0))
                     .size(Size::exact(110.0))
                     .cell_layout(layout)
                     .horizontal(|mut strip| add_contents(&mut strip));

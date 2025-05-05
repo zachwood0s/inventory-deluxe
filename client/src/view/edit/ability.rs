@@ -2,7 +2,10 @@ use common::{Ability, AbilityId};
 use egui::{Grid, Window};
 use log::{info, warn};
 
-use crate::state::DndState;
+use crate::{
+    listener::CommandQueue,
+    state::{abilities::commands::UpdateAbility, DndState},
+};
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct EditState {
@@ -33,14 +36,23 @@ impl EditState {
     }
 }
 
-pub struct AbilityEdit<'a> {
+pub struct AbilityEdit<'a, 'q> {
     ability_id: &'a AbilityId,
     state: &'a DndState,
+    commands: &'a mut CommandQueue<'q>,
 }
 
-impl<'a> AbilityEdit<'a> {
-    pub fn new(ability_id: &'a AbilityId, state: &'a DndState) -> Self {
-        Self { ability_id, state }
+impl<'a, 'q> AbilityEdit<'a, 'q> {
+    pub fn new(
+        ability_id: &'a AbilityId,
+        state: &'a DndState,
+        commands: &'a mut CommandQueue<'q>,
+    ) -> Self {
+        Self {
+            ability_id,
+            state,
+            commands,
+        }
     }
 
     pub fn show(self, ui: &mut egui::Ui) {
@@ -65,18 +77,18 @@ impl<'a> AbilityEdit<'a> {
             ui.label("Resource");
             ui.text_edit_singleline(&mut state.ability.resource);
             ui.end_row();
-            /*
-                     *
-            pub notes: Option<String>,
-            pub ability_type: String,
-            pub flavor_text: Option<String>,
-            pub resource: String,
-            pub max_count: i64,
-                     * */
+
+            ui.label("Damage");
+            ui.text_edit_singleline(&mut state.ability.damage);
+            ui.end_row();
+
+            ui.label("To-Hit");
+            ui.text_edit_singleline(&mut state.ability.to_hit);
+            ui.end_row();
         });
 
         if ui.button("Save").clicked() {
-            info!("Save");
+            self.commands.add(UpdateAbility::new(state.ability.clone()));
         }
 
         state.store(ui);

@@ -178,7 +178,14 @@ impl eframe::App for MyApp {
                             return;
                         };
 
-                        AbilityEdit::new(ability_id, &self.state).show(ui);
+                        AbilityEdit::new(
+                            ability_id,
+                            &self.state,
+                            &mut CommandQueue {
+                                command_queue: &mut command_queue,
+                            },
+                        )
+                        .show(ui);
                     });
 
                 // Handle window closed

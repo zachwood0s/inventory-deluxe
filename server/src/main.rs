@@ -11,25 +11,22 @@ use anyhow::anyhow;
 use log::{error, info};
 use message_io::{
     network::{Endpoint, NetEvent, SendStatus, Transport},
-    node::{self, NodeHandler, NodeListener},
+    node::{self, NodeHandler},
 };
 
 use common::{
     message::{DndMessage, UnRegisterUser},
-    AbilityId, ItemGrant, User,
+    User,
 };
 
-mod db_types;
 mod tasks;
-use ctrlc;
-use db_types::*;
 use reqwest::{
     header::{HeaderMap, HeaderValue, IntoHeaderName},
     Client,
 };
 use tasks::{
     board::ServerBoardData,
-    data_store::{PullLatestDbData, ServerDataStore},
+    data_store::{PullLatestDbData, ServerDataStore, WriteBackDbData},
     ServerTask,
 };
 use thiserror::Error;
@@ -68,6 +65,7 @@ impl ResponseTextWithError for reqwest::Response {
     }
 }
 
+#[derive(Clone)]
 pub struct ListenerCtx {
     handler: NodeHandler<()>,
 }
@@ -248,12 +246,6 @@ impl DndServer {
     pub async fn run(self) {
         let server = Arc::new(self);
 
-        ctrlc::set_handler(move || {
-            info!("Closing down server");
-            process::exit(0)
-        })
-        .expect("Error setting ctrl-c handler");
-
         let autosave = autosave_task(Arc::clone(&server));
         let listener = listener_task(Arc::clone(&server));
 
@@ -282,6 +274,10 @@ impl DndServer {
         if let Err(e) = res {
             error!("Error handling server task: {e}");
         }
+    }
+
+    pub fn shutdown(&self, ctx: &ListenerCtx) {
+        self.process_task(ctx, DndEndpoint::Server, WriteBackDbData(None));
     }
 }
 
@@ -319,6 +315,17 @@ async fn listener_task(server: Arc<DndServer>) {
             .expect("Failed to open listener");
 
         let ctx = ListenerCtx { handler };
+
+        {
+            let close_server = server.clone();
+            let close_ctx = ctx.clone();
+            ctrlc::set_handler(move || {
+                info!("Closing down server");
+                close_server.shutdown(&close_ctx);
+                process::exit(0)
+            })
+            .expect("Error setting ctrl-c handler");
+        }
 
         server
             .process_task_async(&ctx, DndEndpoint::Server, PullLatestDbData)
