@@ -319,12 +319,18 @@ async fn listener_task(server: Arc<DndServer>) {
         {
             let close_server = server.clone();
             let close_ctx = ctx.clone();
-            ctrlc::set_handler(move || {
+            tokio::spawn(async move {
+                match tokio::signal::ctrl_c().await {
+                    Ok(()) => {}
+                    Err(err) => {
+                        error!("Unable to listen for shutdown signal: {err}");
+                    }
+                }
+
                 info!("Closing down server");
                 close_server.shutdown(&close_ctx);
-                process::exit(0)
-            })
-            .expect("Error setting ctrl-c handler");
+                process::exit(0);
+            });
         }
 
         server

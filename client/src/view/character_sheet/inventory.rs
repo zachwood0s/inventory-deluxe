@@ -17,7 +17,10 @@ use log::info;
 use rand::seq::IndexedRandom;
 
 use crate::{
-    state::character::commands::UpdateItemHandle,
+    state::{
+        character::commands::UpdateItemHandle,
+        commands::{EditItem, ViewItem},
+    },
     widgets::{CustomUi, EnumSelect, Group, No, ToggleIcon},
 };
 
@@ -336,11 +339,11 @@ impl CharacterTabImpl for InventoryTab {
                                     ui.add(Separator::default().vertical());
 
                                     if ui.button(PENCIL_LINE).on_hover_text("Edit").clicked() {
-                                        info!("Show edit!");
+                                        ctx.commands.add(EditItem(item.item.id))
                                     }
 
                                     if ui.button(INFO).on_hover_text("Info").clicked() {
-                                        info!("Show info!");
+                                        ctx.commands.add(ViewItem(item.item.id))
                                     }
                                 });
                             });

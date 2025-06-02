@@ -6,14 +6,17 @@ use std::{
     thread,
 };
 
-use common::{message::DndMessage, AbilityId, User};
+use common::{message::DndMessage, AbilityId, ItemId, User};
 use eframe::egui;
-use egui::{CentralPanel, Window};
+use egui::{CentralPanel, WidgetText, Window};
 use egui_dock::{DockArea, DockState, NodeIndex, SurfaceIndex};
 use listener::{CommandQueue, DndListener, Signal};
 use message_io::events::EventSender;
 use state::DndState;
-use view::{edit::AbilityEdit, DndTab};
+use view::{
+    edit::{AbilityEdit, ItemEdit},
+    DndTab,
+};
 
 use clap::Parser;
 
@@ -135,6 +138,87 @@ impl MyApp {
             });
         });
     }
+
+    fn show_ability(
+        &mut self,
+        ctx: &egui::Context,
+        command_queue: &mut CommandQueue,
+        title: impl Into<WidgetText>,
+        id_select: impl Fn(&mut Self) -> &mut Option<AbilityId>,
+        disabled: bool,
+    ) {
+        let mut ability_edit = id_select(self).is_some();
+        let id = egui::Id::new("edit_ability").with(disabled);
+        let layer_id = egui::LayerId::new(egui::Order::Middle, id);
+
+        let resp = Window::new(title)
+            .id(id)
+            .open(&mut ability_edit)
+            .show(ctx, |ui| {
+                if disabled {
+                    ui.disable();
+                }
+
+                // PERF: Not ideal to clone here but do I really care?? Don't think so
+                let ability_id = id_select(self).clone();
+                let Some(ability_id) = ability_id else {
+                    ui.label("Select an ability to edit");
+                    return;
+                };
+
+                AbilityEdit::new(&ability_id, &self.state, command_queue).show(ui);
+            });
+
+        // Handle window closed
+        if !ability_edit {
+            *id_select(self) = None;
+        }
+
+        // While window is show, move it to the top
+        if resp.is_some() {
+            ctx.move_to_top(layer_id);
+        }
+    }
+
+    fn show_item(
+        &mut self,
+        ctx: &egui::Context,
+        command_queue: &mut CommandQueue,
+        title: impl Into<WidgetText>,
+        id_select: impl Fn(&mut Self) -> &mut Option<ItemId>,
+        disabled: bool,
+    ) {
+        let mut item_edit = id_select(self).is_some();
+        let id = egui::Id::new("edit_item").with(disabled);
+        let layer_id = egui::LayerId::new(egui::Order::Middle, id);
+
+        let resp = Window::new(title)
+            .id(id)
+            .open(&mut item_edit)
+            .show(ctx, |ui| {
+                if disabled {
+                    ui.disable();
+                }
+
+                let item_id = *id_select(self);
+                let Some(item_id) = item_id else {
+                    ui.label("Select an ability to edit");
+                    return;
+                };
+
+                ItemEdit::new(&item_id, &self.state, command_queue).show(ui);
+            });
+
+        // Handle window closed
+        if !item_edit {
+            *id_select(self) = None;
+        }
+
+        // While window is show, move it to the top
+        if resp.is_some() {
+            ctx.move_to_top(layer_id);
+        }
+    }
 }
 
 impl eframe::App for MyApp {
@@ -164,40 +248,42 @@ impl eframe::App for MyApp {
                     .show(ctx, &mut tab_viewer);
             }
 
-            {
-                let mut ability_edit = self.state.ability_edit.is_some();
-                let id = egui::Id::new("edit_ability");
-                let layer_id = egui::LayerId::new(egui::Order::Middle, id);
+            let mut queue = CommandQueue {
+                command_queue: &mut command_queue,
+            };
 
-                let resp = Window::new("Edit Ability")
-                    .id(id)
-                    .open(&mut ability_edit)
-                    .show(ctx, |ui| {
-                        let Some(ability_id) = self.state.ability_edit.as_ref() else {
-                            ui.label("Select an ability to edit");
-                            return;
-                        };
+            self.show_ability(
+                ctx,
+                &mut queue,
+                "Edit Ability",
+                |s| &mut s.state.ability_edit,
+                false,
+            );
 
-                        AbilityEdit::new(
-                            ability_id,
-                            &self.state,
-                            &mut CommandQueue {
-                                command_queue: &mut command_queue,
-                            },
-                        )
-                        .show(ui);
-                    });
+            // For now just reuse the show ability thing for viewing but disable all the inputs
+            self.show_ability(
+                ctx,
+                &mut queue,
+                "View Ability",
+                |s| &mut s.state.ability_info,
+                true,
+            );
 
-                // Handle window closed
-                if !ability_edit {
-                    self.state.ability_edit = None;
-                }
+            self.show_item(
+                ctx,
+                &mut queue,
+                "Edit Item",
+                |s| &mut s.state.item_edit,
+                false,
+            );
 
-                // While window is show, move it to the top
-                if resp.is_some() {
-                    ctx.move_to_top(layer_id);
-                }
-            }
+            self.show_item(
+                ctx,
+                &mut queue,
+                "View Item",
+                |s| &mut s.state.item_info,
+                true,
+            );
 
             for msg in self.rx.as_ref().unwrap().try_iter() {
                 self.state.process(msg);

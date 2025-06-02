@@ -9,7 +9,7 @@ use itertools::Itertools;
 use log::info;
 
 use crate::{
-    state::commands::EditAbility,
+    state::commands::{EditAbility, ViewAbility},
     widgets::{CustomUi, No, ToggleIcon},
 };
 
@@ -255,7 +255,7 @@ impl CharacterTabImpl for AbilitiesTab {
                                     }
 
                                     if ui.button(INFO).on_hover_text("Info").clicked() {
-                                        info!("Show info!");
+                                        ctx.commands.add(ViewAbility(ability.ability.name.clone()));
                                     }
                                 });
                             });

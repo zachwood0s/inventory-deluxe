@@ -1,5 +1,5 @@
 use board::ClientBoard;
-use common::{data_store::DataStore, message::DndMessage, AbilityId, User};
+use common::{data_store::DataStore, message::DndMessage, AbilityId, ItemId, User};
 
 pub mod abilities;
 pub mod backpack;
@@ -18,6 +18,10 @@ pub struct DndState {
     pub user: Option<User>,
 
     pub ability_edit: Option<AbilityId>,
+    pub ability_info: Option<AbilityId>,
+
+    pub item_edit: Option<ItemId>,
+    pub item_info: Option<ItemId>,
 }
 
 impl DndState {
@@ -37,7 +41,7 @@ impl DndState {
 }
 
 pub mod commands {
-    use common::AbilityId;
+    use common::{AbilityId, ItemId};
     use message_io::events::EventSender;
 
     use crate::prelude::{Command, Signal};
@@ -49,6 +53,29 @@ pub mod commands {
     impl Command for EditAbility {
         fn execute(self: Box<Self>, state: &mut DndState, _: &EventSender<Signal>) {
             state.ability_edit = Some(self.0);
+        }
+    }
+
+    pub struct ViewAbility(pub AbilityId);
+
+    impl Command for ViewAbility {
+        fn execute(self: Box<Self>, state: &mut DndState, _: &EventSender<Signal>) {
+            state.ability_info = Some(self.0);
+        }
+    }
+
+    pub struct EditItem(pub ItemId);
+
+    impl Command for EditItem {
+        fn execute(self: Box<Self>, state: &mut DndState, _: &EventSender<Signal>) {
+            state.item_edit = Some(self.0);
+        }
+    }
+
+    pub struct ViewItem(pub ItemId);
+    impl Command for ViewItem {
+        fn execute(self: Box<Self>, state: &mut DndState, tx: &EventSender<Signal>) {
+            state.item_info = Some(self.0);
         }
     }
 }
