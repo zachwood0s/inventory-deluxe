@@ -31,7 +31,8 @@ pub struct CharacterSheetWindow<'a, 'q> {
 impl CharacterSheetWindow<'_, '_> {
     pub fn ui(self, ui: &mut egui::Ui) {
         Window::new("Character")
-            .title_bar(false)
+            .title_bar(true)
+            .collapsible(true)
             .default_open(true)
             .show(ui.ctx(), |ui| {
                 self.sheet.ui(ui);
